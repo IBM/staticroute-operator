@@ -13,6 +13,19 @@ type StaticRouteSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
+
+	// Subnet defines the required IP subnet in the form of: "x.x.x.x/x"
+	Subnet string `json:"subnet"`
+
+	// Gateway the gateway the subnet is routed through (optional, discovered if not set)
+	Gateway string `json:"gateway,omitempty"`
+}
+
+// StaticRouteNodeStatus defines the observed state of one IKS node, related to the StaticRoute
+type StaticRouteNodeStatus struct {
+	Hostname string `json:"hostname"`
+	Gateway  string `json:"gateway"`
+	Device   string `json:"device"`
 }
 
 // StaticRouteStatus defines the observed state of StaticRoute
@@ -21,6 +34,7 @@ type StaticRouteStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
+	NodeStatus []StaticRouteNodeStatus `json:"nodeStatus"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
