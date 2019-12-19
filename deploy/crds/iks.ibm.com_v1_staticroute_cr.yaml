@@ -1,0 +1,7 @@
+apiVersion: iks.ibm.com/v1
+kind: StaticRoute
+metadata:
+  name: example-staticroute
+spec:
+  # Add fields here
+  size: 3
