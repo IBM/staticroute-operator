@@ -93,14 +93,39 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
+			reqLogger.Info("Object not found. Probably deleted meanwhile")
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
 	}
 
-	if len(instance.Finalizers) == 0 {
-		// Add finalizer for this CR
+	isDeleted := instance.GetDeletionTimestamp() != nil
+	if isDeleted {
+		if len(instance.Status.NodeStatus) > 0 && removeFromStatusIfExist(instance, r.options.Hostname) {
+			// TODO: Here comes the DELETE logic
+			reqLogger.Info("Deleted status for StaticRoute", "status", instance.Status)
+			err = r.client.Status().Update(context.TODO(), instance)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+
+		// We were the last one
+		if len(instance.Status.NodeStatus) == 0 {
+			reqLogger.Info("Removing finalizer for StaticRoute")
+			instance.SetFinalizers(nil)
+			err = r.client.Update(context.TODO(), instance)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			return reconcile.Result{}, nil
+		}
+	}
+
+	isNew := len(instance.Finalizers) == 0
+	if isNew {
+		// We are the first one
 		reqLogger.Info("Adding Finalizer for the StaticRoute")
 		if err := r.addFinalizer(instance); err != nil {
 			reqLogger.Error(err, "Failed to update StaticRoute with finalizer")
@@ -108,31 +133,18 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 		}
 	}
 
-	isDeleted := instance.GetDeletionTimestamp() != nil
-	if isDeleted {
-		if len(instance.Status.NodeStatus) > 0 {
-			// remove myself from the status list
-			removeFromStatus(instance, r.options.Hostname)
-
-			// Update CR Status
-			reqLogger.Info("Updating status for StaticRoute", "status", instance.Status)
-			err = r.client.Status().Update(context.TODO(), instance)
-			if err != nil {
-				return reconcile.Result{}, err
-			}
-
-			// requeue this immediately -- once status is empty we can clear finalizers and remove CR
-			return reconcile.Result{}, nil
-		}
-
-		reqLogger.Info("Removing finalizer for StaticRoute")
-		instance.SetFinalizers(nil)
-		err = r.client.Update(context.TODO(), instance)
+	if addToStatusIfNotExist(instance, r.options.Hostname) {
+		// TODO: Here comes the ADD logic
+		reqLogger.Info("Update the StaticRoute status", "staticroute", instance.Status)
+		err = r.client.Status().Update(context.TODO(), instance)
 		if err != nil {
+			reqLogger.Error(err, "failed to update the staticroute")
 			return reconcile.Result{}, err
 		}
 		return reconcile.Result{}, nil
 	}
+
+	// TODO: Here comes the MODIFY logic
 
 	reqLogger.Info("Reconciliation done, no add, no delete.")
 	return reconcile.Result{}, nil
@@ -152,14 +164,35 @@ func (r *ReconcileStaticRoute) addFinalizer(m *iksv1.StaticRoute) error {
 	return nil
 }
 
-func removeFromStatus(m *iksv1.StaticRoute, hostname string) {
+func addToStatusIfNotExist(m *iksv1.StaticRoute, hostname string) bool {
 	// Update the status if necessary
+	foundStatus := false
+	for _, val := range m.Status.NodeStatus {
+		if val.Hostname != hostname {
+			continue
+		}
+		foundStatus = true
+		break
+	}
+
+	if !foundStatus {
+		m.Status.NodeStatus = append(m.Status.NodeStatus, iksv1.StaticRouteNodeStatus{
+			Hostname: hostname,
+		})
+		return true
+	}
+	return false
+}
+
+func removeFromStatusIfExist(m *iksv1.StaticRoute, hostname string) bool {
+	// Update the status if necessary
+	existed := false
 	statusArr := []iksv1.StaticRouteNodeStatus{}
 	for _, val := range m.Status.NodeStatus {
 		valCopy := val.DeepCopy()
 
 		if valCopy.Hostname == hostname {
-			// don't append myself
+			existed = true
 			continue
 		}
 
@@ -169,6 +202,6 @@ func removeFromStatus(m *iksv1.StaticRoute, hostname string) {
 	newStatus := iksv1.StaticRouteStatus{
 		NodeStatus: statusArr,
 	}
-
 	m.Status = newStatus
+	return existed
 }

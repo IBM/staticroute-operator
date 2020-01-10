@@ -19,7 +19,6 @@ import (
 
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"
-	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/log/zap"
 	"github.com/operator-framework/operator-sdk/pkg/metrics"
 	"github.com/operator-framework/operator-sdk/pkg/restmapper"
@@ -80,16 +79,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctx := context.TODO()
+
 	// Get a config to talk to the apiserver
 	cfg, err := config.GetConfig()
-	if err != nil {
-		log.Error(err, "")
-		os.Exit(1)
-	}
-
-	ctx := context.TODO()
-	// Become the leader before proceeding
-	err = leader.Become(ctx, "staticroute-operator-lock")
 	if err != nil {
 		log.Error(err, "")
 		os.Exit(1)
