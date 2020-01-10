@@ -72,9 +72,9 @@ func main() {
 
 	printVersion()
 
-	namespace, found := os.LookupEnv("METRICS_NS")
+	metricsNamespace, found := os.LookupEnv("METRICS_NS")
 	if !found {
-		namespace = "default"
+		metricsNamespace = "default"
 		log.Info("METRICS_NS not defined. Using 'default'")
 	}
 
@@ -89,7 +89,7 @@ func main() {
 
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := manager.New(cfg, manager.Options{
-		Namespace:          namespace,
+		Namespace:          "",
 		MapperProvider:     restmapper.NewDynamicRESTMapper,
 		MetricsBindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort),
 	})
@@ -124,7 +124,7 @@ func main() {
 	// CreateServiceMonitors will automatically create the prometheus-operator ServiceMonitor resources
 	// necessary to configure Prometheus to scrape metrics from this operator.
 	services := []*v1.Service{service}
-	_, err = metrics.CreateServiceMonitors(cfg, namespace, services)
+	_, err = metrics.CreateServiceMonitors(cfg, metricsNamespace, services)
 	if err != nil {
 		log.Info("Could not create ServiceMonitor object", "error", err.Error())
 		// If this operator is deployed to a cluster without the prometheus-operator running, it will return
