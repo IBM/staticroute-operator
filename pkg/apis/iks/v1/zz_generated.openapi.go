@@ -67,6 +67,23 @@ func schema_pkg_apis_iks_v1_StaticRouteSpec(ref common.ReferenceCallback) common
 			SchemaProps: spec.SchemaProps{
 				Description: "StaticRouteSpec defines the desired state of StaticRoute",
 				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"subnet": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Subnet defines the required IP subnet in the form of: \"x.x.x.x/x\"",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"gateway": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Gateway the gateway the subnet is routed through (optional, discovered if not set)",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"subnet"},
 			},
 		},
 	}
@@ -78,7 +95,25 @@ func schema_pkg_apis_iks_v1_StaticRouteStatus(ref common.ReferenceCallback) comm
 			SchemaProps: spec.SchemaProps{
 				Description: "StaticRouteStatus defines the observed state of StaticRoute",
 				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"nodeStatus": {
+						SchemaProps: spec.SchemaProps{
+							Description: "INSERT ADDITIONAL STATUS FIELD - define observed state of cluster Important: Run \"operator-sdk generate k8s\" to regenerate code after modifying this file Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("./pkg/apis/iks/v1.StaticRouteNodeStatus"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"nodeStatus"},
 			},
 		},
+		Dependencies: []string{
+			"./pkg/apis/iks/v1.StaticRouteNodeStatus"},
 	}
 }

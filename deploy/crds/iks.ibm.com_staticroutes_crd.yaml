@@ -9,7 +9,7 @@ spec:
     listKind: StaticRouteList
     plural: staticroutes
     singular: staticroute
-  scope: Namespaced
+  scope: Cluster
   subresources:
     status: {}
   validation:
@@ -30,9 +30,38 @@ spec:
           type: object
         spec:
           description: StaticRouteSpec defines the desired state of StaticRoute
+          properties:
+            gateway:
+              description: Gateway the gateway the subnet is routed through (optional,
+                discovered if not set)
+              type: string
+            subnet:
+              description: 'Subnet defines the required IP subnet in the form of:
+                "x.x.x.x/x"'
+              type: string
+          required:
+          - subnet
           type: object
         status:
           description: StaticRouteStatus defines the observed state of StaticRoute
+          properties:
+            nodeStatus:
+              description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                of cluster Important: Run "operator-sdk generate k8s" to regenerate
+                code after modifying this file Add custom validation using kubebuilder
+                tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html'
+              items:
+                description: StaticRouteNodeStatus defines the observed state of one
+                  IKS node, related to the StaticRoute
+                properties:
+                  hostname:
+                    type: string
+                required:
+                - hostname
+                type: object
+              type: array
+          required:
+          - nodeStatus
           type: object
       type: object
   version: v1

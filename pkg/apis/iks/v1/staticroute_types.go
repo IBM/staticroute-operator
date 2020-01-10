@@ -40,7 +40,7 @@ type StaticRouteStatus struct {
 // StaticRoute is the Schema for the staticroutes API
 // +k8s:openapi-gen=true
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:path=staticroutes,scope=Namespaced
+// +kubebuilder:resource:path=staticroutes,scope=Cluster
 type StaticRoute struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
