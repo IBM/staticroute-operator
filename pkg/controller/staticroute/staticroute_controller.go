@@ -6,12 +6,9 @@ import (
 	iksv1 "github.com/IBM-Cloud/kube-samples/staticroute-operator/pkg/apis/iks/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -21,20 +18,30 @@ import (
 
 var log = logf.Log.WithName("controller_staticroute")
 
-/**
-* USER ACTION REQUIRED: This is a scaffold file intended for the user to modify with their own Controller
-* business logic.  Delete these comments after modifying this file.*
- */
+// ManagerOptions contains static route management related node properties
+type ManagerOptions struct {
+	Hostname string
+	Zone     string
+}
+
+// ReconcileStaticRoute reconciles a StaticRoute object
+type ReconcileStaticRoute struct {
+	// This client, initialized using mgr.Client() above, is a split client
+	// that reads objects from the cache and writes to the apiserver
+	client  client.Client
+	scheme  *runtime.Scheme
+	options ManagerOptions
+}
 
 // Add creates a new StaticRoute Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
-func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
+func Add(mgr manager.Manager, options ManagerOptions) error {
+	return add(mgr, newReconciler(mgr, options))
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileStaticRoute{client: mgr.GetClient(), scheme: mgr.GetScheme()}
+func newReconciler(mgr manager.Manager, options ManagerOptions) reconcile.Reconciler {
+	return &ReconcileStaticRoute{client: mgr.GetClient(), scheme: mgr.GetScheme(), options: options}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -67,14 +74,6 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 // blank assignment to verify that ReconcileStaticRoute implements reconcile.Reconciler
 var _ reconcile.Reconciler = &ReconcileStaticRoute{}
 
-// ReconcileStaticRoute reconciles a StaticRoute object
-type ReconcileStaticRoute struct {
-	// This client, initialized using mgr.Client() above, is a split client
-	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
-}
-
 // Reconcile reads that state of the cluster for a StaticRoute object and makes changes based on the state read
 // and what is in the StaticRoute.Spec
 // TODO(user): Modify this Reconcile function to implement your Controller logic.  This example creates
@@ -100,54 +99,76 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 		return reconcile.Result{}, err
 	}
 
-	// Define a new Pod object
-	pod := newPodForCR(instance)
-
-	// Set StaticRoute instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
-		return reconcile.Result{}, err
+	if len(instance.Finalizers) == 0 {
+		// Add finalizer for this CR
+		reqLogger.Info("Adding Finalizer for the StaticRoute")
+		if err := r.addFinalizer(instance); err != nil {
+			reqLogger.Error(err, "Failed to update StaticRoute with finalizer")
+			return reconcile.Result{}, err
+		}
 	}
 
-	// Check if this Pod already exists
-	found := &corev1.Pod{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
-		err = r.client.Create(context.TODO(), pod)
+	isDeleted := instance.GetDeletionTimestamp() != nil
+	if isDeleted {
+		if len(instance.Status.NodeStatus) > 0 {
+			// remove myself from the status list
+			removeFromStatus(instance, r.options.Hostname)
+
+			// Update CR Status
+			reqLogger.Info("Updating status for StaticRoute", "status", instance.Status)
+			err = r.client.Status().Update(context.TODO(), instance)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+
+			// requeue this immediately -- once status is empty we can clear finalizers and remove CR
+			return reconcile.Result{}, nil
+		}
+
+		reqLogger.Info("Removing finalizer for StaticRoute")
+		instance.SetFinalizers(nil)
+		err = r.client.Update(context.TODO(), instance)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-
-		// Pod created successfully - don't requeue
 		return reconcile.Result{}, nil
-	} else if err != nil {
-		return reconcile.Result{}, err
 	}
 
-	// Pod already exists - don't requeue
-	reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
+	reqLogger.Info("Reconciliation done, no add, no delete.")
 	return reconcile.Result{}, nil
 }
 
-// newPodForCR returns a busybox pod with the same name/namespace as the cr
-func newPodForCR(cr *iksv1.StaticRoute) *corev1.Pod {
-	labels := map[string]string{
-		"app": cr.Name,
+//addFinalizer will add this attribute to the CR
+func (r *ReconcileStaticRoute) addFinalizer(m *iksv1.StaticRoute) error {
+	if len(m.GetFinalizers()) < 1 && m.GetDeletionTimestamp() == nil {
+		m.SetFinalizers([]string{"finalizer.iks.ibm.com"})
+
+		// Update CR
+		err := r.client.Update(context.TODO(), m)
+		if err != nil {
+			return err
+		}
 	}
-	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-pod",
-			Namespace: cr.Namespace,
-			Labels:    labels,
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:    "busybox",
-					Image:   "busybox",
-					Command: []string{"sleep", "3600"},
-				},
-			},
-		},
+	return nil
+}
+
+func removeFromStatus(m *iksv1.StaticRoute, hostname string) {
+	// Update the status if necessary
+	statusArr := []iksv1.StaticRouteNodeStatus{}
+	for _, val := range m.Status.NodeStatus {
+		valCopy := val.DeepCopy()
+
+		if valCopy.Hostname == hostname {
+			// don't append myself
+			continue
+		}
+
+		statusArr = append(statusArr, *valCopy)
 	}
+
+	newStatus := iksv1.StaticRouteStatus{
+		NodeStatus: statusArr,
+	}
+
+	m.Status = newStatus
 }

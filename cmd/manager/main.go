@@ -8,11 +8,13 @@ import (
 	"runtime"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
 
 	"github.com/IBM-Cloud/kube-samples/staticroute-operator/pkg/apis"
 	"github.com/IBM-Cloud/kube-samples/staticroute-operator/pkg/controller"
+	"github.com/IBM-Cloud/kube-samples/staticroute-operator/pkg/controller/staticroute"
 	"github.com/IBM-Cloud/kube-samples/staticroute-operator/version"
 
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
@@ -24,7 +26,10 @@ import (
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -141,6 +146,69 @@ func main() {
 		if err == metrics.ErrServiceMonitorNotPresent {
 			log.Info("Install prometheus-operator in your cluster to create ServiceMonitor objects", "error", err.Error())
 		}
+	}
+
+	hostname := os.Getenv("NODE_HOSTNAME")
+	if hostname == "" {
+		panic(fmt.Errorf("Missing environment variable: NODE_HOSTNAME"))
+	}
+
+	// get the zone using the API, first get the matching Node
+	c := mgr.GetClient()
+
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(schema.GroupVersionKind{
+		Kind:    "Node",
+		Version: "v1",
+	})
+	err = c.Get(context.Background(), client.ObjectKey{
+		Name: hostname,
+	}, u)
+
+	if err != nil {
+		log.Error(err, "")
+		os.Exit(1)
+	}
+
+	labels := u.GetLabels()
+	zone := labels["failure-domain.beta.kubernetes.io/zone"]
+
+	log.Info(fmt.Sprintf("Node Hostname: %s", hostname))
+	log.Info(fmt.Sprintf("Node Zone: %s", zone))
+	log.Info("Registering Components.")
+
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		log.Error(err, "")
+		os.Exit(1)
+	}
+
+	resources, err := clientset.Discovery().ServerResourcesForGroupVersion("iks.ibm.com/v1")
+	if err != nil {
+		log.Error(err, "")
+		os.Exit(1)
+	}
+
+	crdFound := false
+	for _, resource := range resources.APIResources {
+		if resource.Kind != "StaticRoute" {
+			continue
+		}
+
+		// Start static route controller
+		if err := staticroute.Add(mgr, staticroute.ManagerOptions{
+			Hostname: hostname,
+			Zone:     zone,
+		}); err != nil {
+			log.Error(err, "")
+			os.Exit(1)
+		}
+		crdFound = true
+		break
+	}
+	if !crdFound {
+		log.Info("CRD not found: staticroutes.iks.ibm.com")
+		os.Exit(1)
 	}
 
 	log.Info("Starting the Cmd.")
