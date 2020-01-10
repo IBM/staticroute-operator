@@ -13,7 +13,6 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/IBM-Cloud/kube-samples/staticroute-operator/pkg/apis"
-	"github.com/IBM-Cloud/kube-samples/staticroute-operator/pkg/controller"
 	"github.com/IBM-Cloud/kube-samples/staticroute-operator/pkg/controller/staticroute"
 	"github.com/IBM-Cloud/kube-samples/staticroute-operator/version"
 
@@ -103,12 +102,6 @@ func main() {
 
 	// Setup Scheme for all resources
 	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
-		log.Error(err, "")
-		os.Exit(1)
-	}
-
-	// Setup all Controllers
-	if err := controller.AddToManager(mgr); err != nil {
 		log.Error(err, "")
 		os.Exit(1)
 	}
