@@ -54,9 +54,13 @@ spec:
                 description: StaticRouteNodeStatus defines the observed state of one
                   IKS node, related to the StaticRoute
                 properties:
+                  generation:
+                    format: int64
+                    type: integer
                   hostname:
                     type: string
                 required:
+                - generation
                 - hostname
                 type: object
               type: array

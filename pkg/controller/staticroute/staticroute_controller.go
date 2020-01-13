@@ -119,9 +119,9 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 			if err != nil {
 				return reconcile.Result{}, err
 			}
+		}
 			return reconcile.Result{}, nil
 		}
-	}
 
 	isNew := len(instance.Finalizers) == 0
 	if isNew {
@@ -177,7 +177,8 @@ func addToStatusIfNotExist(m *iksv1.StaticRoute, hostname string) bool {
 
 	if !foundStatus {
 		m.Status.NodeStatus = append(m.Status.NodeStatus, iksv1.StaticRouteNodeStatus{
-			Hostname: hostname,
+			Hostname:   hostname,
+			Generation: m.Generation,
 		})
 		return true
 	}
