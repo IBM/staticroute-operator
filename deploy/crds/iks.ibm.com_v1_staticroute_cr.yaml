@@ -3,4 +3,4 @@ kind: StaticRoute
 metadata:
   name: example-staticroute
 spec:
-  subnet: "192.168.0.1/24"
+  subnet: "192.168.0.0/24"

@@ -1,7 +1,9 @@
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 
+RUN microdnf install -y iproute
+
 ENV OPERATOR=/usr/local/bin/staticroute-operator \
-    USER_UID=1001 \
+    USER_UID=0 \
     USER_NAME=staticroute-operator
 
 # install operator binary
