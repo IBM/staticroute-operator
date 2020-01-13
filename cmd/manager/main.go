@@ -216,10 +216,13 @@ func serveCRMetrics(cfg *rest.Config) error {
 		return err
 	}
 	// Get the namespace the operator is currently deployed in.
-	operatorNs, err := k8sutil.GetOperatorNamespace()
-	if err != nil {
-		return err
-	}
+	/*
+		As suggested in: https://github.com/operator-framework/operator-sdk/issues/1858#issuecomment-548323725
+		operatorNs, err := k8sutil.GetOperatorNamespace()
+		if err != nil {
+			return err
+		} */
+	operatorNs := ""
 	// To generate metrics in other namespaces, add the values below.
 	ns := []string{operatorNs}
 	// Generate and serve custom resource specific metrics.
