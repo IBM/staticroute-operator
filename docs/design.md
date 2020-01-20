@@ -53,54 +53,64 @@ As the Pods are modifying the node's IP stack configuration, they need to have N
 * The main component is the [Operator SDK](https://github.com/operator-framework/operator-sdk/). It is used to generate/update the skeleton of the project and the CRD/CR. The second line dependecies, requires by the SDK (such as client-go for Kubernetes) are not listed here.
 * Go-lang [netlink](https://github.com/vishvananda/netlink) interface to capture unintended IP route changes.
 
-## Implementation details
-### CRD content
-#### Specification
+## CRD content
+### Specification
 Fields in `.spec`:
 * Subnet: string representation of the desired subnet to route. Format: x.x.x.x/x (example: 192.168.1.0/24)
 * Gateway: IP address of the gateway as the next hop for the subnet.
 
-#### Status
+### Status
 As there is no central entity, all Pod running on the Nodes are responsible to update the status in the CR. As a result, the `.status` subresource is a list of individual node statuses.
 TODO decide to report the `generation` field or the CR content in status.
 
-#### Finalizers
+### Finalizers
 There is a single common finalizer used in the CR which is managed by the Pods. The finalizer is immediately put on the CR after creation by the fastest controller (DS Pod). This will prevent the deletion of the CR until all Pod cleaned up the IP routes on the nodes. After the user is asked to delete the CR (`kubectl delete ...`), the Pods are in charge to remove themselves from the `.status` if they are ready with the deletion of the IP route. When the `.status` is empty, the fastest Pod will remove the finalizer and the CR will be removed by the APIserver.
 Due to the APIserver concurrency handling (using `resourceVersion`), there is no need to have any leader to do the finalizer task.
 
-### Feedback to the user
+## Feedback to the user
 The main feedback to the user is the `.status` subresource of the CR. It is always updated with the Node statuses, when they create/update/delete the route according to the CR.
 TODO: decide whether custom Node events are also needed or not.
 
-### Concurrency management
+## Concurrency management
 Kubernetes API uses so-called optimistic concurrency. That means the APIserver is applying serverside logic and not accepting object changes blindly. The clients which are acting on the same resource does not have to coordinate their write attempts. The APIserver will gracefully deny any write operation if the write is not targeting the latest object version. This is controlled by the `resourceVersion` metadata. The client, however is required to re-fetch the most recent object version and re-compute it's change in case when the write fails. Operator SDK follows this requirement by re-injecting the reconciliation event to the controller when error reported in the previous round. Controller code is in charge to report such write error to the SDK. With large clusters, this might happen multiple times, until every Pod is able to update the status and finished the reconciliation.
 
 The same behavior applies to every sub-resources of the objects (`.spec`, `.status`, etc.).
 
 More on the topic [here](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency)
 
-### Failure scenarios and recovery
-#### Controller Pod restarts
+## Failure scenarios and recovery
+### Controller Pod restarts
 Operator SDK is responsible to inject reconciliation requests for all existing CRs on startup. The controller code shall use this opportunity to catch up with all the events which happened during downtime.
 
-#### Node scaling or deletion
+### Node scaling or deletion
 If a node is deleted or destroyed in a way that it could not clean up it's routes, and more importantly the `.status` in the CRs, it would prevent the deletion of the CR. To overcome on this, there is a dedicated control loop in the Pods with a leader elected, who is listening any node deletion and clean up the `.status` for them in the CRs if it didn't happen.
 
-#### Tamper detection
+### Tamper detection
 It might happen that an already created IP route is destroyed by another entity. This can be either the user itself or another controller mechanism on the node. Linux kernel offers an event source (netlink) to detect IP stack changes, so the controller is able to detect, report and react on the changes.
 
-### Permanent go-routines
-#### Main controller, CR watcher
+## Controller loops
+### Static route controller, CR watcher
+This is the main functionality. It is based on a generated controller by Operator SDK. This controller is running in all-active. This means there is no leader election, every node runs it's instance, which is realizing the routes on the node according to the CR and reporting back to the CR's `.status`. This controller is contacting the static route manager (see below) to realize the route changes.
+
+The code is under `pkg/controller/staticroute/staticroute_controller.go` and the data types are under `pkg/apis/iks/v1/staticroute_types.go`.
+
+### Node cleaner
+If any node is terminated and deleted from Kubernetes API, it can happen that the respective `.status` field is not cleaned up by the operator instance, which was running on the node. This blocks the CR deletion, since the finalizer will be removed only when the `.status` subresource is empty. This is a known edge case and needs to have graceful handling.
+
+The node cleaner is a second controller loop running in all operator instances. However, it is sufficient to have only a single active instance in the cluster, which means this controller loop shall run with leader election. It reconciles the core Node objects. When a DELETE action is happening, it scans through the current CRs and cleans up the leftover `.status` entries instead of the retired node (if exists). When leader election happens, the full review of the Nodes and CRs are performed to catch up with any missing events.
+
+TODO: add package path
+
+## Other packages
+### Static route manager
+Since the IP routes on the nodes are essentially forming a state (in the kernel), those need to have a representation in the operator's scope and the controller loops (as state-less layers) can not own this data. This package provides ownership for the IP routes which are created by the operator. The package provides a permanent go-routine with function interfaces to manage static routes, including creating, deleting and querying them.
+
+The package, moreover gives an event source which can be used to detect changes in the routes which are managed by the operator. The changes are detected using the netlink kernel interface, filtered for route changes. When a route add or delete request is handled, it shall be double-checked with the same event interface, before returning the request result to the sender (i.e. to return only if the route change is reported back by the kernel).
+
+TODO: add package path
+
+## Metrics
 TODO
 
-#### Node cleaner
-TODO
-
-#### IP route monitor
-TODO
-
-### Metrics
-TODO
-
-### Limitations
+## Limitations
 The current implementation only supports IPv4.
