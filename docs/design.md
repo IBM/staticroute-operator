@@ -6,6 +6,14 @@ The solution below is assuming the cluster administrator has a good understandin
 
 Also, the solution is not intended to provide the basic cluster network setup (i.e. API server or container registry reachability) as it would cause chicken-egg problems.
 
+## Terms
+| Term | Explanation                |
+|------|----------------------------|
+| IKS  | IBM Kubernetes Service     |
+| CRD  | Custom Resource Definition |
+| CR   | Custom Resource (instance) |
+| DS   | DaemonSet                  |
+
 ## Concept
 There are use-cases when Kubernetes cluster administrator wants to manage custom static routes on the cluster member nodes. Such use case can be i.e. connecting clusters in the cloud to customer's private on-prem datacenters/servers via some VPN solution.
 
@@ -51,28 +59,28 @@ As the Pods are modifying the node's IP stack configuration, they need to have N
 
 ## Components, external packages
 * The main component is the [Operator SDK](https://github.com/operator-framework/operator-sdk/). It is used to generate/update the skeleton of the project and the CRD/CR. The second line dependecies, requires by the SDK (such as client-go for Kubernetes) are not listed here.
-* Go-lang [netlink](https://github.com/vishvananda/netlink) interface to capture unintended IP route changes.
+* Go-lang [netlink](https://github.com/vishvananda/netlink) interface to manage IP routes, and also capture unintended IP route changes.
 
 ## CRD content
 ### Specification
 Fields in `.spec`:
 * Subnet: string representation of the desired subnet to route. Format: x.x.x.x/x (example: 192.168.1.0/24)
-* Gateway: IP address of the gateway as the next hop for the subnet.
+* Gateway: IP address of the gateway as the next hop for the subnet. Can be empty.
 
 ### Status
-As there is no central entity, all Pod running on the Nodes are responsible to update the status in the CR. As a result, the `.status` subresource is a list of individual node statuses.
+As there is no central entity, all Pod running on the Nodes are responsible to update the status in the CR. As a result, the `.status` sub-resource is a list of individual node statuses.
 TODO decide to report the `generation` field or the CR content in status.
 
 ### Finalizers
-There is a single common finalizer used in the CR which is managed by the Pods. The finalizer is immediately put on the CR after creation by the fastest controller (DS Pod). This will prevent the deletion of the CR until all Pod cleaned up the IP routes on the nodes. After the user is asked to delete the CR (`kubectl delete ...`), the Pods are in charge to remove themselves from the `.status` if they are ready with the deletion of the IP route. When the `.status` is empty, the fastest Pod will remove the finalizer and the CR will be removed by the APIserver.
-Due to the APIserver concurrency handling (using `resourceVersion`), there is no need to have any leader to do the finalizer task.
+There is a single common finalizer used in the CR which is managed by the Pods. The finalizer is immediately put on the CR after creation by the fastest controller (DS Pod). This will prevent the deletion of the CR until all Pod cleaned up the IP routes on the nodes. After the user is asked to delete the CR (`kubectl delete ...`), the Pods are in charge to remove themselves from the `.status` if they are ready with the deletion of the IP route. When the `.status` is empty, the fastest Pod will remove the finalizer and the CR will be removed by the API-server.
+Due to the API-server concurrency handling (using `resourceVersion`), there is no need to have any leader to do the finalizer task.
 
 ## Feedback to the user
-The main feedback to the user is the `.status` subresource of the CR. It is always updated with the Node statuses, when they create/update/delete the route according to the CR.
+The main feedback to the user is the `.status` sub-resource of the CR. It is always updated with the Node statuses, when they create/update/delete the route according to the CR.
 TODO: decide whether custom Node events are also needed or not.
 
 ## Concurrency management
-Kubernetes API uses so-called optimistic concurrency. That means the APIserver is applying serverside logic and not accepting object changes blindly. The clients which are acting on the same resource does not have to coordinate their write attempts. The APIserver will gracefully deny any write operation if the write is not targeting the latest object version. This is controlled by the `resourceVersion` metadata. The client, however is required to re-fetch the most recent object version and re-compute it's change in case when the write fails. Operator SDK follows this requirement by re-injecting the reconciliation event to the controller when error reported in the previous round. Controller code is in charge to report such write error to the SDK. With large clusters, this might happen multiple times, until every Pod is able to update the status and finished the reconciliation.
+Kubernetes API uses so-called optimistic concurrency. That means the API-server is applying server-side logic and not accepting object changes blindly. The clients which are acting on the same resource does not have to coordinate their write attempts. The API-server will gracefully deny any write operation if the write is not targeting the latest object version. This is controlled by the `resourceVersion` metadata. The client, however is required to re-fetch the most recent object version and re-compute it's change in case when the write fails. Operator SDK follows this requirement by re-injecting the reconciliation event to the controller when error reported in the previous round. Controller code is in charge to report such write error to the SDK. With large clusters, this might happen multiple times, until every Pod is able to update the status and finished the reconciliation.
 
 The same behavior applies to every sub-resources of the objects (`.spec`, `.status`, etc.).
 
@@ -95,7 +103,7 @@ This is the main functionality. It is based on a generated controller by Operato
 The code is under `pkg/controller/staticroute/staticroute_controller.go` and the data types are under `pkg/apis/iks/v1/staticroute_types.go`.
 
 ### Node cleaner
-If any node is terminated and deleted from Kubernetes API, it can happen that the respective `.status` field is not cleaned up by the operator instance, which was running on the node. This blocks the CR deletion, since the finalizer will be removed only when the `.status` subresource is empty. This is a known edge case and needs to have graceful handling.
+If any node is terminated and deleted from Kubernetes API, it can happen that the respective `.status` field is not cleaned up by the operator instance, which was running on the node. This blocks the CR deletion, since the finalizer will be removed only when the `.status` sub-resource is empty (which means all operator instance clean up the IP route in the kernel). This is a known edge case and needs to have graceful handling.
 
 The node cleaner is a second controller loop running in all operator instances. However, it is sufficient to have only a single active instance in the cluster, which means this controller loop shall run with leader election. It reconciles the core Node objects. When a DELETE action is happening, it scans through the current CRs and cleans up the leftover `.status` entries instead of the retired node (if exists). When leader election happens, the full review of the Nodes and CRs are performed to catch up with any missing events.
 
