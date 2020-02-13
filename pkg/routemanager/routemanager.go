@@ -1,75 +1,58 @@
 package routemanager
 
 import (
-	"net"
-
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
-type Route struct {
-	Dst   net.IPNet
-	Gw    net.IP
-	Table int
-}
-
-type RouteEvent int
-
-type RouteWatcher interface {
-	RouteDeleted(Route)
-}
-
-type RouteManager interface {
-	RegisterRoute(Route) error
-	DeRegisterRoute(Route) error
-	RegisterWatcher(RouteWatcher) error
-	DeRegisterWatcher(RouteWatcher) error
-	Run(chan struct{})
-}
-
-type RouteManagerImpl struct {
+type routeManagerImpl struct {
 	managedRoutes     []Route
 	watchers          []RouteWatcher
 	nlSubscribeFunc   func(chan<- netlink.RouteUpdate, <-chan struct{}) error
-	registerRoute     chan RouteManagerImplRegisterRouteParams
-	deRegisterRoute   chan RouteManagerImplRegisterRouteParams
+	nlAddRouteFunc    func(route *netlink.Route) error
+	nlDelRouteFunc    func(route *netlink.Route) error
+	registerRoute     chan routeManagerImplRegisterRouteParams
+	deRegisterRoute   chan routeManagerImplRegisterRouteParams
 	registerWatcher   chan RouteWatcher
 	deregisterWatcher chan RouteWatcher
 }
 
-type RouteManagerImplRegisterRouteParams struct {
+type routeManagerImplRegisterRouteParams struct {
 	route Route
 	err   chan<- error
 }
 
+//Init creates a RouteManager for production use. It populates the routeManagerImpl structure with the final pointers to netlink package's functions.
 func Init() RouteManager {
-	return &RouteManagerImpl{
+	return &routeManagerImpl{
 		nlSubscribeFunc:   netlink.RouteSubscribe,
-		registerRoute:     make(chan RouteManagerImplRegisterRouteParams),
-		deRegisterRoute:   make(chan RouteManagerImplRegisterRouteParams),
+		nlAddRouteFunc:    netlink.RouteAdd,
+		nlDelRouteFunc:    netlink.RouteDel,
+		registerRoute:     make(chan routeManagerImplRegisterRouteParams),
+		deRegisterRoute:   make(chan routeManagerImplRegisterRouteParams),
 		registerWatcher:   make(chan RouteWatcher),
 		deregisterWatcher: make(chan RouteWatcher),
 	}
 }
 
-func (r *RouteManagerImpl) RegisterRoute(route Route) error {
+func (r *routeManagerImpl) RegisterRoute(route Route) error {
 	errChan := make(chan error)
-	r.registerRoute <- RouteManagerImplRegisterRouteParams{route, errChan}
+	r.registerRoute <- routeManagerImplRegisterRouteParams{route, errChan}
 	return <-errChan
 }
 
-func (r RouteManagerImpl) DeRegisterRoute(route Route) error {
+func (r routeManagerImpl) DeRegisterRoute(route Route) error {
 	errChan := make(chan error)
-	r.deRegisterRoute <- RouteManagerImplRegisterRouteParams{route, errChan}
+	r.deRegisterRoute <- routeManagerImplRegisterRouteParams{route, errChan}
 	return <-errChan
 }
 
-func (r *RouteManagerImpl) RegisterWatcher(w RouteWatcher) error {
+func (r *routeManagerImpl) RegisterWatcher(w RouteWatcher) error {
 	r.registerWatcher <- w
 	return nil
 }
 
-func (r *RouteManagerImpl) DeRegisterWatcher(w RouteWatcher) error {
+func (r *routeManagerImpl) DeRegisterWatcher(w RouteWatcher) error {
 	r.deregisterWatcher <- w
 	return nil
 }
@@ -90,7 +73,7 @@ func fromNetLinkRoute(netlinkRoute netlink.Route) Route {
 	}
 }
 
-func (r *RouteManagerImpl) Run(stopChan chan struct{}) {
+func (r *routeManagerImpl) Run(stopChan chan struct{}) {
 	updateChan := make(chan netlink.RouteUpdate)
 	r.nlSubscribeFunc(updateChan, stopChan)
 loop:
@@ -119,6 +102,7 @@ loop:
 			for index, item := range r.watchers {
 				if item == watcher {
 					r.watchers = append(r.watchers[:index], r.watchers[index+1:]...)
+					break
 				}
 			}
 		case params := <-r.registerRoute:
@@ -131,6 +115,7 @@ loop:
 					//TODO remove route
 					r.managedRoutes = append(r.managedRoutes[:index], r.managedRoutes[index+1:]...)
 					params.err <- nil
+					break
 				}
 			}
 		}

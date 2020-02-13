@@ -1,10 +1,16 @@
 package routemanager
 
-import "testing"
+import (
+	"net"
+	"sync"
+	"testing"
+)
 
-import "sync"
+type MockRouteWatcher struct {
+}
 
-import "net"
+func (m MockRouteWatcher) RouteDeleted(r Route) {
+}
 
 func TestNothingBlocks(t *testing.T) {
 	rm := Init()
@@ -15,8 +21,12 @@ func TestNothingBlocks(t *testing.T) {
 		rm.Run(stopChan)
 		wg.Done()
 	}()
+	mockWatcher := MockRouteWatcher{}
 	rm.RegisterRoute(Route{Dst: net.IPNet{IP: net.IP{192, 168, 1, 0}, Mask: net.IPMask{24}}, Gw: net.IP{192, 168, 1, 254}, Table: 254})
+	rm.RegisterWatcher(mockWatcher)
+
 	rm.DeRegisterRoute(Route{Dst: net.IPNet{IP: net.IP{192, 168, 1, 0}, Mask: net.IPMask{24}}, Gw: net.IP{192, 168, 1, 254}, Table: 254})
+	rm.DeRegisterWatcher(mockWatcher)
 	close(stopChan)
 	wg.Wait()
 }
