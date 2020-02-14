@@ -1,6 +1,8 @@
 package routemanager
 
 import (
+	"reflect"
+
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
@@ -14,7 +16,7 @@ type routeManagerImpl struct {
 	registerRoute     chan routeManagerImplRegisterRouteParams
 	deRegisterRoute   chan routeManagerImplRegisterRouteParams
 	registerWatcher   chan RouteWatcher
-	deregisterWatcher chan RouteWatcher
+	deRegisterWatcher chan RouteWatcher
 }
 
 type routeManagerImplRegisterRouteParams struct {
@@ -22,8 +24,8 @@ type routeManagerImplRegisterRouteParams struct {
 	err   chan<- error
 }
 
-//Init creates a RouteManager for production use. It populates the routeManagerImpl structure with the final pointers to netlink package's functions.
-func Init() RouteManager {
+//New creates a RouteManager for production use. It populates the routeManagerImpl structure with the final pointers to netlink package's functions.
+func New() RouteManager {
 	return &routeManagerImpl{
 		nlSubscribeFunc:   netlink.RouteSubscribe,
 		nlAddRouteFunc:    netlink.RouteAdd,
@@ -31,7 +33,7 @@ func Init() RouteManager {
 		registerRoute:     make(chan routeManagerImplRegisterRouteParams),
 		deRegisterRoute:   make(chan routeManagerImplRegisterRouteParams),
 		registerWatcher:   make(chan RouteWatcher),
-		deregisterWatcher: make(chan RouteWatcher),
+		deRegisterWatcher: make(chan RouteWatcher),
 	}
 }
 
@@ -53,7 +55,7 @@ func (r *routeManagerImpl) RegisterWatcher(w RouteWatcher) error {
 }
 
 func (r *routeManagerImpl) DeRegisterWatcher(w RouteWatcher) error {
-	r.deregisterWatcher <- w
+	r.deRegisterWatcher <- w
 	return nil
 }
 
@@ -98,9 +100,9 @@ loop:
 			break loop
 		case watcher := <-r.registerWatcher:
 			r.watchers = append(r.watchers, watcher)
-		case watcher := <-r.deregisterWatcher:
+		case watcher := <-r.deRegisterWatcher:
 			for index, item := range r.watchers {
-				if item == watcher {
+				if reflect.DeepEqual(item, watcher) {
 					r.watchers = append(r.watchers[:index], r.watchers[index+1:]...)
 					break
 				}
