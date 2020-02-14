@@ -8,15 +8,15 @@ import (
 )
 
 type routeManagerImpl struct {
-	managedRoutes     []Route
-	watchers          []RouteWatcher
-	nlSubscribeFunc   func(chan<- netlink.RouteUpdate, <-chan struct{}) error
-	nlAddRouteFunc    func(route *netlink.Route) error
-	nlDelRouteFunc    func(route *netlink.Route) error
-	registerRoute     chan routeManagerImplRegisterRouteParams
-	deRegisterRoute   chan routeManagerImplRegisterRouteParams
-	registerWatcher   chan RouteWatcher
-	deRegisterWatcher chan RouteWatcher
+	managedRoutes        []Route
+	watchers             []RouteWatcher
+	nlRouteSubscribeFunc func(chan<- netlink.RouteUpdate, <-chan struct{}) error
+	nlRouteAddFunc       func(route *netlink.Route) error
+	nlRouteDelFunc       func(route *netlink.Route) error
+	registerRoute        chan routeManagerImplRegisterRouteParams
+	deRegisterRoute      chan routeManagerImplRegisterRouteParams
+	registerWatcher      chan RouteWatcher
+	deRegisterWatcher    chan RouteWatcher
 }
 
 type routeManagerImplRegisterRouteParams struct {
@@ -27,13 +27,13 @@ type routeManagerImplRegisterRouteParams struct {
 //New creates a RouteManager for production use. It populates the routeManagerImpl structure with the final pointers to netlink package's functions.
 func New() RouteManager {
 	return &routeManagerImpl{
-		nlSubscribeFunc:   netlink.RouteSubscribe,
-		nlAddRouteFunc:    netlink.RouteAdd,
-		nlDelRouteFunc:    netlink.RouteDel,
-		registerRoute:     make(chan routeManagerImplRegisterRouteParams),
-		deRegisterRoute:   make(chan routeManagerImplRegisterRouteParams),
-		registerWatcher:   make(chan RouteWatcher),
-		deRegisterWatcher: make(chan RouteWatcher),
+		nlRouteSubscribeFunc: netlink.RouteSubscribe,
+		nlRouteAddFunc:       netlink.RouteAdd,
+		nlRouteDelFunc:       netlink.RouteDel,
+		registerRoute:        make(chan routeManagerImplRegisterRouteParams),
+		deRegisterRoute:      make(chan routeManagerImplRegisterRouteParams),
+		registerWatcher:      make(chan RouteWatcher),
+		deRegisterWatcher:    make(chan RouteWatcher),
 	}
 }
 
@@ -77,7 +77,7 @@ func fromNetLinkRoute(netlinkRoute netlink.Route) Route {
 
 func (r *routeManagerImpl) Run(stopChan chan struct{}) {
 	updateChan := make(chan netlink.RouteUpdate)
-	r.nlSubscribeFunc(updateChan, stopChan)
+	r.nlRouteSubscribeFunc(updateChan, stopChan)
 loop:
 	for {
 		select {
@@ -108,15 +108,23 @@ loop:
 				}
 			}
 		case params := <-r.registerRoute:
-			//TODO create route
+			nlRoute := params.route.toNetLinkRoute()
+			if err := r.nlRouteAddFunc(&nlRoute); err != nil {
+				params.err <- err
+				break
+			}
 			r.managedRoutes = append(r.managedRoutes, params.route)
 			params.err <- nil
 		case params := <-r.deRegisterRoute:
 			for index, item := range r.managedRoutes {
 				if params.route.toNetLinkRoute().Equal(item.toNetLinkRoute()) {
-					//TODO remove route
+					nlRoute := params.route.toNetLinkRoute()
+					err := r.nlRouteDelFunc(&nlRoute)
+					/* We always remove the route from the managed ones, regardless of the error from the lower layer.
+					   Error supposed to happen only when the route is already missing, which was reported to the watchers, so they know.
+					*/
 					r.managedRoutes = append(r.managedRoutes[:index], r.managedRoutes[index+1:]...)
-					params.err <- nil
+					params.err <- err
 					break
 				}
 			}
