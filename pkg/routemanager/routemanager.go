@@ -67,6 +67,17 @@ func (r Route) toNetLinkRoute() netlink.Route {
 	}
 }
 
+/* This version of equal shall be used everywhere in this package.
+   Netlink also does have an Equal function, however if we use that with
+   mixing netlink.Route and routemanager.Route input, it will report false.
+   The reason is that netlink.Route has a lot of additional properties which
+   routemanager.Route doesn't (type, protocol, linkindex, etc.). So we need
+   to convert back and forth the netlink.Route instances before comparing them
+   to zero out the fields which we do not store in this package. */
+func (r Route) equal(x Route) bool {
+	return r.toNetLinkRoute().Equal(x.toNetLinkRoute())
+}
+
 func fromNetLinkRoute(netlinkRoute netlink.Route) Route {
 	return Route{
 		Dst:   *netlinkRoute.Dst,
@@ -89,7 +100,7 @@ loop:
 				break
 			}
 			for _, route := range r.managedRoutes {
-				if route.toNetLinkRoute().Equal(update.Route) {
+				if route.equal(fromNetLinkRoute(update.Route)) {
 					for _, watcher := range r.watchers {
 						watcher.RouteDeleted(fromNetLinkRoute(update.Route))
 					}
@@ -117,7 +128,7 @@ loop:
 			params.err <- nil
 		case params := <-r.deRegisterRoute:
 			for index, item := range r.managedRoutes {
-				if params.route.toNetLinkRoute().Equal(item.toNetLinkRoute()) {
+				if params.route.equal(item) {
 					nlRoute := params.route.toNetLinkRoute()
 					err := r.nlRouteDelFunc(&nlRoute)
 					/* We always remove the route from the managed ones, regardless of the error from the lower layer.
