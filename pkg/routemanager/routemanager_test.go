@@ -21,7 +21,7 @@ func (m MockRouteWatcher) RouteDeleted(r Route) {
 }
 
 var gMockUpdateChan chan<- netlink.RouteUpdate
-var gTestRoute = Route{Dst: net.IPNet{IP: net.IP{192, 168, 1, 0}, Mask: net.IPMask{24}}, Gw: net.IP{192, 168, 1, 254}, Table: 254}
+var gTestRoute = Route{Dst: net.IPNet{IP: net.IP{192, 168, 1, 0}, Mask: net.CIDRMask(24, 32)}, Gw: net.IP{192, 168, 1, 254}, Table: 254}
 
 func mockRouteSubscribe(u chan<- netlink.RouteUpdate, c <-chan struct{}) error {
 	gMockUpdateChan = u
