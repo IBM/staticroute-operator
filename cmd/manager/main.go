@@ -12,9 +12,9 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
 
-	"github.com/IBM-Cloud/kube-samples/staticroute-operator/pkg/apis"
-	"github.com/IBM-Cloud/kube-samples/staticroute-operator/pkg/controller/staticroute"
-	"github.com/IBM-Cloud/kube-samples/staticroute-operator/version"
+	"github.com/IBM/staticroute-operator/pkg/apis"
+	"github.com/IBM/staticroute-operator/pkg/controller/staticroute"
+	"github.com/IBM/staticroute-operator/version"
 
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"

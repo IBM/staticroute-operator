@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"strings"
 
-	iksv1 "github.com/IBM-Cloud/kube-samples/staticroute-operator/pkg/apis/iks/v1"
-	"github.com/IBM-Cloud/kube-samples/staticroute-operator/pkg/util"
+	iksv1 "github.com/IBM/staticroute-operator/pkg/apis/iks/v1"
+	"github.com/IBM/staticroute-operator/pkg/util"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"

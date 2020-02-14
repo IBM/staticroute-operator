@@ -1,7 +1,7 @@
 package apis
 
 import (
-	v1 "github.com/IBM-Cloud/kube-samples/staticroute-operator/pkg/apis/iks/v1"
+	v1 "github.com/IBM/staticroute-operator/pkg/apis/iks/v1"
 )
 
 func init() {

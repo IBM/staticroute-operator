@@ -1,4 +1,4 @@
-module github.com/IBM-Cloud/kube-samples/staticroute-operator
+module github.com/IBM/staticroute-operator
 
 go 1.13
 
