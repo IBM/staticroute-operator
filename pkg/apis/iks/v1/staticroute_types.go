@@ -23,8 +23,9 @@ type StaticRouteSpec struct {
 
 // StaticRouteNodeStatus defines the observed state of one IKS node, related to the StaticRoute
 type StaticRouteNodeStatus struct {
-	Hostname   string `json:"hostname"`
-	Generation int64  `json:"generation"`
+	Hostname string          `json:"hostname"`
+	State    StaticRouteSpec `json:"state"`
+	Error    string          `json:"error"`
 }
 
 // StaticRouteStatus defines the observed state of StaticRoute

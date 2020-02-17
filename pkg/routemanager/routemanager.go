@@ -52,8 +52,13 @@ func (r *routeManagerImpl) RegisterRoute(name string, route Route) error {
 	return <-errChan
 }
 
+func (r *routeManagerImpl) IsRegistered(name string) bool {
+	_, exists := r.managedRoutes[name]
+	return exists
+}
+
 func (r *routeManagerImpl) registerRoute(params routeManagerImplRegisterRouteParams) {
-	if _, alreadyExists := r.managedRoutes[params.name]; alreadyExists {
+	if r.IsRegistered(params.name) {
 		params.err <- errors.New("Route with the same Name already registered")
 		return
 	}
