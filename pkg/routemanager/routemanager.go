@@ -92,18 +92,16 @@ func (r *routeManagerImpl) deRegisterRoute(params routeManagerImplDeRegisterRout
 	params.err <- nil
 }
 
-func (r *routeManagerImpl) RegisterWatcher(w RouteWatcher) error {
+func (r *routeManagerImpl) RegisterWatcher(w RouteWatcher) {
 	r.registerWatcherChan <- w
-	return nil
 }
 
 func (r *routeManagerImpl) registerWatcher(w RouteWatcher) {
 	r.watchers = append(r.watchers, w)
 }
 
-func (r *routeManagerImpl) DeRegisterWatcher(w RouteWatcher) error {
+func (r *routeManagerImpl) DeRegisterWatcher(w RouteWatcher) {
 	r.deRegisterWatcherChan <- w
-	return nil
 }
 
 func (r *routeManagerImpl) deRegisterWatcher(w RouteWatcher) {
@@ -156,9 +154,11 @@ func (r *routeManagerImpl) notifyWatchers(update netlink.RouteUpdate) {
 	}
 }
 
-func (r *routeManagerImpl) Run(stopChan chan struct{}) {
+func (r *routeManagerImpl) Run(stopChan chan struct{}) error {
 	updateChan := make(chan netlink.RouteUpdate)
-	r.nlRouteSubscribeFunc(updateChan, stopChan)
+	if err := r.nlRouteSubscribeFunc(updateChan, stopChan); err != nil {
+		return err
+	}
 loop:
 	for {
 		select {
@@ -179,4 +179,5 @@ loop:
 			r.deRegisterRoute(params)
 		}
 	}
+	return nil
 }

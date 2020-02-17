@@ -40,6 +40,7 @@ func dummyRouteDel(route *netlink.Route) error {
 
 type testableRouteManager struct {
 	rm       RouteManager
+	runError error
 	wg       sync.WaitGroup
 	stopChan chan struct{}
 }
@@ -47,7 +48,7 @@ type testableRouteManager struct {
 func (m *testableRouteManager) start() {
 	m.wg.Add(1)
 	go func() {
-		m.rm.Run(m.stopChan)
+		m.runError = m.rm.Run(m.stopChan)
 		m.wg.Done()
 	}()
 }
@@ -106,11 +107,27 @@ func TestNothingBlocksInRun(t *testing.T) {
 	defer testable.stop()
 
 	mockWatcher := MockRouteWatcher{}
-	testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
+	if err := testable.rm.RegisterRoute(gTestRouteName, gTestRoute); err != nil {
+		t.Error("RegisterRoute shall pass here")
+	}
 	testable.rm.RegisterWatcher(mockWatcher)
 
-	testable.rm.DeRegisterRoute(gTestRouteName)
+	if err := testable.rm.DeRegisterRoute(gTestRouteName); err != nil {
+		t.Error("DeRegisterRoute shall pass here")
+	}
 	testable.rm.DeRegisterWatcher(mockWatcher)
+}
+
+func TestRunReturnsSubscribeError(t *testing.T) {
+	testable := newTestableRouteManager()
+	testable.rm.(*routeManagerImpl).nlRouteSubscribeFunc = func(chan<- netlink.RouteUpdate, <-chan struct{}) error {
+		return errors.New("bla")
+	}
+	testable.start()
+	testable.stop()
+	if testable.runError == nil {
+		t.Error("Run supposed to early exit with an error due to route subscription failure")
+	}
 }
 
 func TestWatchNewRouteDoesNotTrigger(t *testing.T) {
@@ -158,7 +175,9 @@ func TestWatch(t *testing.T) {
 	defer testable.stop()
 
 	mockWatcher := MockRouteWatcher{routeDeletedCalledWith: make(chan Route)}
-	testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
+	if err := testable.rm.RegisterRoute(gTestRouteName, gTestRoute); err != nil {
+		t.Error("RegisterRoute shall pass here")
+	}
 	testable.rm.RegisterWatcher(mockWatcher)
 
 	if gMockUpdateChan == nil {
@@ -171,7 +190,9 @@ func TestWatch(t *testing.T) {
 		t.Error("Route in update event must be the same which we sent in")
 	}
 
-	testable.rm.DeRegisterRoute(gTestRouteName)
+	if err := testable.rm.DeRegisterRoute(gTestRouteName); err != nil {
+		t.Error("RegisterRoute shall pass here")
+	}
 	testable.rm.DeRegisterWatcher(mockWatcher)
 }
 
@@ -196,7 +217,11 @@ func TestRegisterRouteSuccess(t *testing.T) {
 	}
 	testable.start()
 
-	go testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
+	go func() {
+		if err := testable.rm.RegisterRoute(gTestRouteName, gTestRoute); err != nil {
+			t.Error("RegisterRoute shall pass here")
+		}
+	}()
 	addedRoute := <-addCalledWith
 	testable.stop()
 	if !addedRoute.Equal(gTestRoute.toNetLinkRoute()) {
@@ -221,7 +246,11 @@ func TestRegisterRouteFail(t *testing.T) {
 	}
 	testable.start()
 
-	go testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
+	go func() {
+		if err := testable.rm.RegisterRoute(gTestRouteName, gTestRoute); err == nil {
+			t.Error("RegisterRoute shall fail here")
+		}
+	}()
 	addedRoute := <-addCalledWith
 	if !addedRoute.Equal(gTestRoute.toNetLinkRoute()) {
 		t.Error("Route sent to netlink does not match with the original")
@@ -263,9 +292,15 @@ func TestDeRegisterRouteAlreadyDeleted(t *testing.T) {
 		return errors.New(syscall.ESRCH.Error())
 	}
 	testable.start()
-	testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
+	if err := testable.rm.RegisterRoute(gTestRouteName, gTestRoute); err != nil {
+		t.Error("RegisterRoute shall pass here")
+	}
 
-	go testable.rm.DeRegisterRoute(gTestRouteName)
+	go func() {
+		if err := testable.rm.DeRegisterRoute(gTestRouteName); err != nil {
+			t.Error("DeRegisterRoute shall pass here")
+		}
+	}()
 	deletedRoute := <-delCalledWith
 	testable.stop()
 	if !deletedRoute.Equal(gTestRoute.toNetLinkRoute()) {
@@ -285,9 +320,15 @@ func TestDeRegisterRouteUnknownError(t *testing.T) {
 		return errors.New("bla")
 	}
 	testable.start()
-	testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
+	if err := testable.rm.RegisterRoute(gTestRouteName, gTestRoute); err != nil {
+		t.Error("RegisterRoute shall pass here")
+	}
 
-	go testable.rm.DeRegisterRoute(gTestRouteName)
+	go func() {
+		if err := testable.rm.DeRegisterRoute(gTestRouteName); err == nil {
+			t.Error("DeRegisterRoute shall fail here")
+		}
+	}()
 	deletedRoute := <-delCalledWith
 	if !deletedRoute.Equal(gTestRoute.toNetLinkRoute()) {
 		t.Error("Route sent to netlink does not match with the original")

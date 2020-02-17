@@ -23,9 +23,9 @@ type RouteManager interface {
 	//DeRegisterRoute removed the route from the kernel and also stop watching it.
 	DeRegisterRoute(string) error
 	//RegisterWatcher registers a new RouteWatcher, which will be notified if the managed routes are deleted.
-	RegisterWatcher(RouteWatcher) error
+	RegisterWatcher(RouteWatcher)
 	//DeRegisterWatcher removes watchers
-	DeRegisterWatcher(RouteWatcher) error
+	DeRegisterWatcher(RouteWatcher)
 	//Run is the main event loop, shall run in it's own go-routine. Returns when the channel sent in got closed.
-	Run(chan struct{})
+	Run(chan struct{}) error
 }
