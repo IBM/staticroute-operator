@@ -198,6 +198,7 @@ func TestRegisterRouteSuccess(t *testing.T) {
 
 	go testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
 	addedRoute := <-addCalledWith
+	testable.stop()
 	if !addedRoute.Equal(gTestRoute.toNetLinkRoute()) {
 		t.Error("Route sent to netlink does not match with the original")
 	}
@@ -209,7 +210,6 @@ func TestRegisterRouteSuccess(t *testing.T) {
 		}
 	}
 
-	testable.stop()
 }
 
 func TestRegisterRouteFail(t *testing.T) {
@@ -267,6 +267,7 @@ func TestDeRegisterRouteAlreadyDeleted(t *testing.T) {
 
 	go testable.rm.DeRegisterRoute(gTestRouteName)
 	deletedRoute := <-delCalledWith
+	testable.stop()
 	if !deletedRoute.Equal(gTestRoute.toNetLinkRoute()) {
 		t.Error("Route sent to netlink does not match with the original")
 	}
@@ -274,7 +275,6 @@ func TestDeRegisterRouteAlreadyDeleted(t *testing.T) {
 		t.Error("managedRoute slice must be empty")
 	}
 
-	testable.stop()
 }
 
 func TestDeRegisterRouteUnknownError(t *testing.T) {
