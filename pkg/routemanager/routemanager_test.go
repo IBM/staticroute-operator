@@ -60,14 +60,14 @@ func (m *testableRouteManager) stop() {
 func newTestableRouteManager() testableRouteManager {
 	return testableRouteManager{
 		rm: &routeManagerImpl{
-			managedRoutes:        make(map[string]Route),
-			nlRouteSubscribeFunc: mockRouteSubscribe,
-			nlRouteAddFunc:       dummyRouteAdd,
-			nlRouteDelFunc:       dummyRouteDel,
-			registerRoute:        make(chan routeManagerImplRegisterRouteParams),
-			deRegisterRoute:      make(chan routeManagerImplDeRegisterRouteParams),
-			registerWatcher:      make(chan RouteWatcher),
-			deRegisterWatcher:    make(chan RouteWatcher),
+			managedRoutes:         make(map[string]Route),
+			nlRouteSubscribeFunc:  mockRouteSubscribe,
+			nlRouteAddFunc:        dummyRouteAdd,
+			nlRouteDelFunc:        dummyRouteDel,
+			registerRouteChan:     make(chan routeManagerImplRegisterRouteParams),
+			deRegisterRouteChan:   make(chan routeManagerImplDeRegisterRouteParams),
+			registerWatcherChan:   make(chan RouteWatcher),
+			deRegisterWatcherChan: make(chan RouteWatcher),
 		},
 		wg:       sync.WaitGroup{},
 		stopChan: make(chan struct{}),
@@ -86,21 +86,21 @@ func TestNewDoesReturnValidManager(t *testing.T) {
 	if runtime.FuncForPC(reflect.ValueOf(rm.(*routeManagerImpl).nlRouteSubscribeFunc).Pointer()).Name() != runtime.FuncForPC(reflect.ValueOf(netlink.RouteSubscribe).Pointer()).Name() {
 		t.Error("nlRouteSubscribeFunc function is not pointing to netlink package")
 	}
-	if rm.(*routeManagerImpl).registerRoute == nil {
+	if rm.(*routeManagerImpl).registerRouteChan == nil {
 		t.Error("registerRoute channel is not initialized")
 	}
-	if rm.(*routeManagerImpl).deRegisterRoute == nil {
+	if rm.(*routeManagerImpl).deRegisterRouteChan == nil {
 		t.Error("deRegisterRoute channel is not initialized")
 	}
-	if rm.(*routeManagerImpl).registerWatcher == nil {
+	if rm.(*routeManagerImpl).registerWatcherChan == nil {
 		t.Error("registerWatcher channel is not initialized")
 	}
-	if rm.(*routeManagerImpl).deRegisterWatcher == nil {
+	if rm.(*routeManagerImpl).deRegisterWatcherChan == nil {
 		t.Error("deRegisterWatcher channel is not initialized")
 	}
 }
 
-func TestNothingBlocks(t *testing.T) {
+func TestNothingBlocksInRun(t *testing.T) {
 	testable := newTestableRouteManager()
 	testable.start()
 	defer testable.stop()
