@@ -134,11 +134,14 @@ loop:
 			for index, item := range r.managedRoutes {
 				if params.route.equal(item) {
 					nlRoute := params.route.toNetLinkRoute()
-					err := r.nlRouteDelFunc(&nlRoute)
-					/* We always remove the route from the managed ones, regardless of the error from the lower layer.
+					/* We remove the route from the managed ones, regardless of the ESRCH (no such process) error from the lower layer.
 					   Error supposed to happen only when the route is already missing, which was reported to the watchers, so they know. */
+					if err := r.nlRouteDelFunc(&nlRoute); err != nil && syscall.ESRCH.Error() != err.Error() {
+						params.err <- err
+						break
+					}
 					r.managedRoutes = append(r.managedRoutes[:index], r.managedRoutes[index+1:]...)
-					params.err <- err
+					params.err <- nil
 					break
 				}
 			}

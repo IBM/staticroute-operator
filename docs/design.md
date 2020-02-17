@@ -117,7 +117,7 @@ When a route registration fails (see exception), it is not added to the managed 
 
 The package gives an event source which can be used to detect changes in the routes which are managed by the operator. The changes are detected using the netlink kernel interface, filtered for route changes.
 
-When a managed route is deleted by an external entity, it is not auto-removed from the managed routes. It is the task of the event handler, so it has to deregister the route (and re-register if needed). Consequently if a route deletion during the deregistration causes error (route does not exist) it is still removed from the managed route list.
+When a managed route is deleted by an external entity, it is not auto-removed from the managed routes. It is the task of the event handler, so it has to deregister the route (and re-register if needed). Consequently if a route deletion during the deregistration causes error (route does not exist) it is still removed from the managed route list. Other errors are reported back to the requestor.
 
 The code is under `pkg/routemanager`
 

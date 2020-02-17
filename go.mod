@@ -4,10 +4,12 @@ go 1.13
 
 require (
 	github.com/go-openapi/spec v0.19.0
+	github.com/google/go-cmp v0.4.0 // indirect
 	github.com/operator-framework/operator-sdk v0.12.0
 	github.com/spf13/pflag v1.0.3
 	github.com/vishvananda/netlink v0.0.0-20171020171820-b2de5d10e38e
-	golang.org/x/sys v0.0.0-20190515120540-06a5c4944438
+	golang.org/x/net v0.0.0-20200202094626-16171245cfb2 // indirect
+	golang.org/x/sys v0.0.0-20200202164722-d101bd2416d5
 	k8s.io/api v0.0.0
 	k8s.io/apimachinery v0.0.0
 	k8s.io/client-go v11.0.0+incompatible

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"sync"
+	"syscall"
 	"testing"
 
 	"github.com/vishvananda/netlink"
@@ -230,7 +231,29 @@ func TestAddRouteFail(t *testing.T) {
 	testable.stop()
 }
 
-func TestDelRouteFail(t *testing.T) {
+func TestDelRouteAlreadyDeleted(t *testing.T) {
+	testable := newTestableRouteManager()
+	delCalledWith := make(chan *netlink.Route)
+	testable.rm.(*routeManagerImpl).nlRouteDelFunc = func(route *netlink.Route) error {
+		delCalledWith <- route
+		return errors.New(syscall.ESRCH.Error())
+	}
+	testable.start()
+	testable.rm.RegisterRoute(gTestRoute)
+
+	go testable.rm.DeRegisterRoute(gTestRoute)
+	deletedRoute := <-delCalledWith
+	if !deletedRoute.Equal(gTestRoute.toNetLinkRoute()) {
+		t.Error("Route sent to netlink does not match with the original")
+	}
+	if len(testable.rm.(*routeManagerImpl).managedRoutes) > 0 {
+		t.Error("managedRoute slice must be empty")
+	}
+
+	testable.stop()
+}
+
+func TestDelRouteUnknownError(t *testing.T) {
 	testable := newTestableRouteManager()
 	delCalledWith := make(chan *netlink.Route)
 	testable.rm.(*routeManagerImpl).nlRouteDelFunc = func(route *netlink.Route) error {
@@ -245,8 +268,8 @@ func TestDelRouteFail(t *testing.T) {
 	if !deletedRoute.Equal(gTestRoute.toNetLinkRoute()) {
 		t.Error("Route sent to netlink does not match with the original")
 	}
-	if len(testable.rm.(*routeManagerImpl).managedRoutes) > 0 {
-		t.Error("managedRoute slice must be empty")
+	if len(testable.rm.(*routeManagerImpl).managedRoutes) != 1 {
+		t.Error("managedRoute slice must still contain the route, which couldn't be removed due to an unknown error")
 	}
 
 	testable.stop()
