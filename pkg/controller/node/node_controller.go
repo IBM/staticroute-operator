@@ -83,31 +83,28 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 
 	// Fetch the Node instance
 	node := &corev1.Node{}
-	err := r.client.Get(context.Background(), request.NamespacedName, node)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			routes := &iksv1.StaticRouteList{}
-			err := r.client.List(context.Background(), routes)
-			if err != nil {
-				reqLogger.Error(err, "Unable to fetch CRDs")
-				return reconcile.Result{}, err
-			}
-
-			nf := nodeFinder{
-				nodeName: request.Name,
-				routes:   routes,
-				updateCallback: func(route *iksv1.StaticRoute) error {
-					return r.client.Update(context.Background(), route)
-				},
-				infoLogger: reqLogger.Info,
-			}
-			nf.findAndDeleteNode()
-			if err != nil {
-				reqLogger.Error(err, "Unable to update CRD")
-				return reconcile.Result{}, err
-			}
-		}
+	if err := r.client.Get(context.Background(), request.NamespacedName, node); err == nil {
+		return reconcile.Result{}, nil
+	} else if !errors.IsNotFound(err) {
 		// Error reading the object - requeue the request.
+		return reconcile.Result{}, err
+	}
+
+	routes := &iksv1.StaticRouteList{}
+	if err := r.client.List(context.Background(), routes); err != nil {
+		reqLogger.Error(err, "Unable to fetch CRDs")
+		return reconcile.Result{}, err
+	}
+
+	nf := nodeFinder{
+		nodeName: request.Name,
+		updateCallback: func(route *iksv1.StaticRoute) error {
+			return r.client.Update(context.Background(), route)
+		},
+		infoLogger: reqLogger.Info,
+	}
+	if err := nf.delete(routes); err != nil {
+		reqLogger.Error(err, "Unable to update CRD")
 		return reconcile.Result{}, err
 	}
 
@@ -116,32 +113,37 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 
 type nodeFinder struct {
 	nodeName       string
-	routes         *iksv1.StaticRouteList
 	updateCallback func(*iksv1.StaticRoute) error
 	infoLogger     func(string, ...interface{})
 }
 
-func (nf *nodeFinder) findAndDeleteNode() error {
-	for _, route := range nf.routes.Items {
-		statusToDelete := -1
-		for i, status := range route.Status.NodeStatus {
-			if status.Hostname != nf.nodeName {
-				continue
-			}
-			statusToDelete = i
-			break
+func (nf *nodeFinder) delete(routes *iksv1.StaticRouteList) error {
+	for _, route := range routes.Items {
+		statusToDelete := nf.findNode(&route)
+		if statusToDelete == -1 {
+			continue
 		}
-		if statusToDelete > -1 {
-			nf.infoLogger("Found the node to delete")
+		nf.infoLogger("Found the node to delete")
 
-			copy(route.Status.NodeStatus[statusToDelete:], route.Status.NodeStatus[statusToDelete+1:])
-			route.Status.NodeStatus[len(route.Status.NodeStatus)-1] = iksv1.StaticRouteNodeStatus{}
-			route.Status.NodeStatus = route.Status.NodeStatus[:len(route.Status.NodeStatus)-1]
+		copy(route.Status.NodeStatus[statusToDelete:], route.Status.NodeStatus[statusToDelete+1:])
+		route.Status.NodeStatus[len(route.Status.NodeStatus)-1] = iksv1.StaticRouteNodeStatus{}
+		route.Status.NodeStatus = route.Status.NodeStatus[:len(route.Status.NodeStatus)-1]
 
-			if err := nf.updateCallback(&route); err != nil {
-				return err
-			}
+		if err := nf.updateCallback(&route); err != nil {
+			return err
 		}
 	}
+
 	return nil
+}
+
+func (nf *nodeFinder) findNode(route *iksv1.StaticRoute) int {
+	for i, status := range route.Status.NodeStatus {
+		if status.Hostname != nf.nodeName {
+			continue
+		}
+		return i
+	}
+
+	return -1
 }
