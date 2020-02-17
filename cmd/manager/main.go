@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/IBM/staticroute-operator/pkg/apis"
+	"github.com/IBM/staticroute-operator/pkg/controller/node"
 	"github.com/IBM/staticroute-operator/pkg/controller/staticroute"
 	"github.com/IBM/staticroute-operator/version"
 
@@ -194,6 +195,12 @@ func main() {
 	}
 	if !crdFound {
 		log.Info("CRD not found: staticroutes.iks.ibm.com")
+		os.Exit(1)
+	}
+
+	// Start node controller
+	if err := node.Add(mgr); err != nil {
+		log.Error(err, "")
 		os.Exit(1)
 	}
 

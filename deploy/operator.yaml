@@ -15,7 +15,7 @@ spec:
       hostNetwork: true
       containers:
       - name: staticroute-operator
-        image: us.icr.io/huszty/staticroute:latest
+        image: REPLACE_IMAGE
         command:
           - staticroute-operator
         imagePullPolicy: Always
