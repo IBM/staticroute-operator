@@ -1,9 +1,36 @@
+GO111MODULE:=on
+DOCKER_BUILDKIT=1
+GO_PACKAGES=$(shell go list ./... | grep -v /tests/)
+GO_FILES = $(shell find . -type f -name '*.go' -not -path "./.git/*")
+GOLANGCI_LINT_EXISTS:=$(shell golangci-lint --version 2>/dev/null)
 REGISTRY_REPO?=quay.io/example/staticroute-operator
 KUBECONFIG?=$$HOME/.kube/config
 GIT_COMMIT_SHA:=$(shell git rev-parse HEAD 2>/dev/null)
 
 _calculate-build-number:
     $(eval export CONTAINER_VERSION?=$(GIT_COMMIT_SHA)-$(shell date "+%s"))
+
+lint:
+ifdef GOLANGCI_LINT_EXISTS
+	golangci-lint run
+else
+	@echo "golangci-lint is not installed"
+endif
+
+formatcheck:
+	([ -z "$(shell gofmt -d $(GO_FILES))" ]) || (echo "Source is unformatted, please execute make format"; exit 1)
+
+format:
+	@gofmt -w ${GO_FILES}
+
+coverage:
+	go tool cover -html=cover.out -o=cover.html
+
+vet:
+	go vet ${GO_PACKAGES}
+
+test:
+	go test -race -timeout 60s -covermode=atomic -coverprofile=cover.out ${GO_PACKAGES}
 
 update-operator-resource:
 	operator-sdk generate crds
