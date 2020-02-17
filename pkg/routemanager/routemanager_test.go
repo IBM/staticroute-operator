@@ -187,7 +187,7 @@ func TestWatchCloseUpdateChan(t *testing.T) {
 	testable.wg.Wait()
 }
 
-func TestAddRouteSuccess(t *testing.T) {
+func TestRegisterRouteSuccess(t *testing.T) {
 	testable := newTestableRouteManager()
 	addCalledWith := make(chan *netlink.Route)
 	testable.rm.(*routeManagerImpl).nlRouteAddFunc = func(route *netlink.Route) error {
@@ -212,7 +212,7 @@ func TestAddRouteSuccess(t *testing.T) {
 	testable.stop()
 }
 
-func TestAddRouteFail(t *testing.T) {
+func TestRegisterRouteFail(t *testing.T) {
 	testable := newTestableRouteManager()
 	addCalledWith := make(chan *netlink.Route)
 	testable.rm.(*routeManagerImpl).nlRouteAddFunc = func(route *netlink.Route) error {
@@ -233,26 +233,29 @@ func TestAddRouteFail(t *testing.T) {
 	testable.stop()
 }
 
-func TestSameAddRouteFail(t *testing.T) {
+func TestSameRegisterRouteTwiceFail(t *testing.T) {
 	testable := newTestableRouteManager()
 	testable.start()
 
-	testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
+	err := testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
+	if err != nil {
+		t.Error("First RegisterRoute must pass")
+	}
 	if len(testable.rm.(*routeManagerImpl).managedRoutes) != 1 {
 		t.Error("managedRoute slice must contain the added route")
 	}
-	err := testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
+	err = testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
 	if err == nil {
 		t.Error("Adding the same route for the second time shall fail")
 	}
 	if len(testable.rm.(*routeManagerImpl).managedRoutes) != 1 {
-		t.Error("managedRoute slice must contain the added route")
+		t.Error("managedRoute slice must still contain the added route")
 	}
 
 	testable.stop()
 }
 
-func TestDelRouteAlreadyDeleted(t *testing.T) {
+func TestDeRegisterRouteAlreadyDeleted(t *testing.T) {
 	testable := newTestableRouteManager()
 	delCalledWith := make(chan *netlink.Route)
 	testable.rm.(*routeManagerImpl).nlRouteDelFunc = func(route *netlink.Route) error {
@@ -274,7 +277,7 @@ func TestDelRouteAlreadyDeleted(t *testing.T) {
 	testable.stop()
 }
 
-func TestDelRouteUnknownError(t *testing.T) {
+func TestDeRegisterRouteUnknownError(t *testing.T) {
 	testable := newTestableRouteManager()
 	delCalledWith := make(chan *netlink.Route)
 	testable.rm.(*routeManagerImpl).nlRouteDelFunc = func(route *netlink.Route) error {
@@ -296,7 +299,7 @@ func TestDelRouteUnknownError(t *testing.T) {
 	testable.stop()
 }
 
-func TestDelRouteWhichIsNotRegistered(t *testing.T) {
+func TestDeRegisterRouteWhichIsNotRegistered(t *testing.T) {
 	testable := newTestableRouteManager()
 	testable.start()
 	err := testable.rm.DeRegisterRoute(gTestRouteName)
