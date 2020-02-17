@@ -86,6 +86,7 @@ func TestDelete(t *testing.T) {
 		},
 	}
 
+	//nolint:errcheck
 	nf.delete(routes)
 
 	if updateInputParam == nil {
