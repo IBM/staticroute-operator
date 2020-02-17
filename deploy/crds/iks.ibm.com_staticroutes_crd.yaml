@@ -54,14 +54,28 @@ spec:
                 description: StaticRouteNodeStatus defines the observed state of one
                   IKS node, related to the StaticRoute
                 properties:
-                  generation:
-                    format: int64
-                    type: integer
+                  error:
+                    type: string
                   hostname:
                     type: string
+                  state:
+                    description: StaticRouteSpec defines the desired state of StaticRoute
+                    properties:
+                      gateway:
+                        description: Gateway the gateway the subnet is routed through
+                          (optional, discovered if not set)
+                        type: string
+                      subnet:
+                        description: 'Subnet defines the required IP subnet in the
+                          form of: "x.x.x.x/x"'
+                        type: string
+                    required:
+                    - subnet
+                    type: object
                 required:
-                - generation
+                - error
                 - hostname
+                - state
                 type: object
               type: array
           required:

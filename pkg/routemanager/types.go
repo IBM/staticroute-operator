@@ -18,6 +18,8 @@ type RouteWatcher interface {
 
 //RouteManager is the main interface, which is implemented by the package
 type RouteManager interface {
+	//IsRegistered returns true if a Route (by it's name) is already managed
+	IsRegistered(string) bool
 	//RegisterRoute creates and start watching the route. If the route is deleted after the registration, RouteWatchers will be notified.
 	RegisterRoute(string, Route) error
 	//DeRegisterRoute removed the route from the kernel and also stop watching it.

@@ -15,6 +15,7 @@ import (
 	"github.com/IBM/staticroute-operator/pkg/apis"
 	"github.com/IBM/staticroute-operator/pkg/controller/node"
 	"github.com/IBM/staticroute-operator/pkg/controller/staticroute"
+	"github.com/IBM/staticroute-operator/pkg/routemanager"
 	"github.com/IBM/staticroute-operator/version"
 
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
@@ -182,10 +183,16 @@ func main() {
 			continue
 		}
 
+		// Create RouteManager
+		routeManager := routemanager.New()
+		stopChan := make(chan struct{})
+		go routeManager.Run(stopChan)
+
 		// Start static route controller
 		if err := staticroute.Add(mgr, staticroute.ManagerOptions{
-			Hostname: hostname,
-			Zone:     zone,
+			Hostname:     hostname,
+			Zone:         zone,
+			RouteManager: routeManager,
 		}); err != nil {
 			log.Error(err, "")
 			os.Exit(1)

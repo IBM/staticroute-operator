@@ -3,11 +3,11 @@ package staticroute
 import (
 	"context"
 	"fmt"
-	"regexp"
-	"strings"
+	"net"
 
 	iksv1 "github.com/IBM/staticroute-operator/pkg/apis/iks/v1"
-	"github.com/IBM/staticroute-operator/pkg/util"
+	"github.com/IBM/staticroute-operator/pkg/routemanager"
+	"github.com/vishvananda/netlink"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -23,8 +23,9 @@ var log = logf.Log.WithName("controller_staticroute")
 
 // ManagerOptions contains static route management related node properties
 type ManagerOptions struct {
-	Hostname string
-	Zone     string
+	RouteManager routemanager.RouteManager
+	Hostname     string
+	Zone         string
 }
 
 // ReconcileStaticRoute reconciles a StaticRoute object
@@ -69,9 +70,8 @@ var _ reconcile.Reconciler = &ReconcileStaticRoute{}
 
 // Reconcile reads that state of the cluster for a StaticRoute object and makes changes based on the state read
 // and what is in the StaticRoute.Spec
-
 func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
+	reqLogger := log.WithValues("Request.Name", request.Name)
 	reqLogger.Info("Reconciling StaticRoute")
 
 	// Fetch the StaticRoute instance
@@ -89,11 +89,66 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 		return reconcile.Result{}, err
 	}
 
+	isNew := len(instance.Finalizers) == 0
+	if isNew {
+		// We are the first one
+		reqLogger.Info("Adding Finalizer for the StaticRoute")
+		if err := r.addFinalizer(instance); err != nil {
+			reqLogger.Error(err, "Failed to update StaticRoute with finalizer")
+			return reconcile.Result{}, err
+		}
+	}
+
+	zoneVal := instance.GetLabels()["failure-domain.beta.kubernetes.io/zone"]
+	if zoneVal != "" && zoneVal != r.options.Zone {
+		// a zone is specified and the route is not for this zone, ignore
+		reqLogger.Info("Ignoring, zone does not match", "NodeZone", r.options.Zone, "CRZone", zoneVal)
+		return reconcile.Result{}, nil
+	}
+
+	gateway := instance.Spec.Gateway
+	var gwIP net.IP
+	// If "gateway" is empty, we'll create the route through the default private network gateway
+	if gateway == "" {
+		gwRoute, err := netlink.RouteGet(net.IP{10, 0, 0, 1})
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		fmt.Printf("* %+v", gwRoute[0].Gw)
+		gwIP = gwRoute[0].Gw
+		if err != nil {
+			reqLogger.Info("Unable to retrieve fallback gateway")
+			return reconcile.Result{}, err
+		}
+	} else {
+		gwIP = net.ParseIP(gateway)
+	}
+	instance.Spec.Gateway = gwIP.String()
+	if !r.options.RouteManager.IsRegistered(request.Name) {
+		/*  Here comes the ADD logic
+		    This also runs if the CR was asked for deletion, but the operator did not run meanwhile.
+			In this case the route is still programmed to the kernel, so we register the route here
+			in order to successfully deregister and remove it from the kernel below */
+
+		_, ipnet, err := net.ParseCIDR(instance.Spec.Subnet)
+		if err != nil {
+			reqLogger.Error(err, "Could not convert the subnet into IP range and mask")
+		}
+		reqLogger.Info("Registering route")
+		err = r.options.RouteManager.RegisterRoute(request.Name, routemanager.Route{Dst: *ipnet, Gw: gwIP, Table: 254})
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+	} else {
+		reqLogger.Info("Route already registered")
+	}
+
 	isDeleted := instance.GetDeletionTimestamp() != nil
 	if isDeleted {
 		if len(instance.Status.NodeStatus) > 0 && removeFromStatusIfExist(instance, r.options.Hostname) {
 			// Here comes the DELETE logic
-			err := delStaticRoute(instance.Spec.Subnet)
+			reqLogger.Info("Deregistering route")
+			err := r.options.RouteManager.DeRegisterRoute(request.Name)
 			if err != nil {
 				return reconcile.Result{}, err
 			}
@@ -117,41 +172,8 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 		return reconcile.Result{}, nil
 	}
 
-	isNew := len(instance.Finalizers) == 0
-	if isNew {
-		// We are the first one
-		reqLogger.Info("Adding Finalizer for the StaticRoute")
-		if err := r.addFinalizer(instance); err != nil {
-			reqLogger.Error(err, "Failed to update StaticRoute with finalizer")
-			return reconcile.Result{}, err
-		}
-	}
-
-	zoneVal := instance.GetLabels()["failure-domain.beta.kubernetes.io/zone"]
-	if zoneVal != "" && zoneVal != r.options.Zone {
-		// a zone is specified and the route is not for this zone, ignore
-		reqLogger.Info("Ignoring, zone does not match", "NodeZone", r.options.Zone, "CRZone", zoneVal)
-		return reconcile.Result{}, nil
-	}
-
-	gateway := instance.Spec.Gateway
-
+	// Delay status update until this point, so it will not be executed if CR delete is ongoing
 	if addToStatusIfNotExist(instance, r.options.Hostname) {
-		// Here comes the ADD logic
-		// note that if "gateway" is still empty, we'll create the route through the default private network gateway
-		if gateway == "" {
-			gateway, err = getFallbackGateway()
-			if err != nil {
-				reqLogger.Info("Unable to retrieve fallback gateway")
-				return reconcile.Result{}, err
-			}
-		}
-
-		err = addStaticRoute(instance.Spec.Subnet, gateway)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-
 		reqLogger.Info("Update the StaticRoute status", "staticroute", instance.Status)
 		err = r.client.Status().Update(context.TODO(), instance)
 		if err != nil {
@@ -194,8 +216,9 @@ func addToStatusIfNotExist(m *iksv1.StaticRoute, hostname string) bool {
 
 	if !foundStatus {
 		m.Status.NodeStatus = append(m.Status.NodeStatus, iksv1.StaticRouteNodeStatus{
-			Hostname:   hostname,
-			Generation: m.Generation,
+			Hostname: hostname,
+			State:    m.Spec,
+			Error:    "",
 		})
 		return true
 	}
@@ -222,99 +245,4 @@ func removeFromStatusIfExist(m *iksv1.StaticRoute, hostname string) bool {
 	}
 	m.Status = newStatus
 	return existed
-}
-
-func getRouteDevice(subnet string) (string, error) {
-	// find the device that the subnet is being routed through
-	re := regexp.MustCompile(`(?s).*dev ([^\s]*) .*`)
-	out, _, err := util.ExecIpCmd(fmt.Sprintf("route get %s", subnet))
-	if err != nil {
-		return "", err
-	}
-
-	device := re.ReplaceAllString(out, "$1")
-
-	return device, nil
-}
-
-func getFallbackGateway() (string, error) {
-	// if no gateway is defined, just use the same gateway that 10.0.0.0/8 uses and assume
-	// that the edge device will route/NAT us to the network
-	re := regexp.MustCompile(`(?s).*via ([^\s]*) .*`)
-	out, _, err := util.ExecIpCmd(fmt.Sprintf("route get 10.0.0.0/8"))
-	if err != nil {
-		return "", err
-	}
-
-	myGateway := re.ReplaceAllString(out, "$1")
-
-	return myGateway, nil
-}
-
-func addStaticRoute(subnet string, gateway string) error {
-	// check if route already exists
-	out, code, err := util.ExecIpCmd(fmt.Sprintf("route show %s", subnet))
-	if err != nil {
-		return err
-	}
-
-	re := regexp.MustCompile(`(?s).*via ([^\s]*) .*`)
-
-	// if route exists already
-	if out != "" {
-		currGateway := re.ReplaceAllString(out, "$1")
-
-		if currGateway == gateway {
-			log.Info(fmt.Sprintf("Route for %s via %s already exists", subnet, gateway))
-			return nil
-		}
-
-		// delete the route if the gateway doesn't match
-		out, code, err := util.ExecIpCmd(fmt.Sprintf("route del %s via %s", subnet, currGateway))
-		if err != nil {
-			return err
-		}
-
-		if code != 0 {
-			return fmt.Errorf("Error executing \"ip route del\", output: %s", out)
-		}
-	}
-
-	// add the new route
-	out, code, err = util.ExecIpCmd(fmt.Sprintf("route add %s via %s", subnet, gateway))
-	if err != nil {
-		return err
-	}
-
-	if code != 0 {
-		return fmt.Errorf("Error executing \"ip route add\", output: %s", out)
-	}
-
-	return nil
-}
-
-func delStaticRoute(subnet string) error {
-	// check if route already exists
-	out, code, err := util.ExecIpCmd(fmt.Sprintf("route show %s", subnet))
-	if err != nil {
-		return err
-	}
-
-	// if route already doesn't exists
-	if out == "" {
-		log.Info(fmt.Sprintf("Route for %s already doesn't exist", subnet))
-		return nil
-	}
-
-	// delete the route
-	out, code, err = util.ExecIpCmd(fmt.Sprintf("route del %s", strings.TrimSuffix(out, " \n")))
-	if err != nil {
-		return err
-	}
-
-	if code != 0 {
-		return fmt.Errorf("Error executing \"ip route del\", output: %s", out)
-	}
-
-	return nil
 }
