@@ -113,7 +113,7 @@ TODO: add package path
 ### Static route manager
 Since the IP routes on the nodes are essentially forming a state (in the kernel), those need to have a representation in the operator's scope and the controller loops (as state-less layers) can not own this data. This package provides ownership for the IP routes which are created by the operator. The package provides a permanent go-routine with function interfaces to manage static routes, including creating and deleting them.
 
-When a route registration fails, it is not added to the managed route list and the error is reported to the requestor.
+When a route registration fails (see exception), it is not added to the managed route list and the error is reported to the requestor. When the error is "file exists" (EEXIST = Errno(0x11)) it is accepted, assuming the route is created by ourselves, probably before a crash.
 
 The package gives an event source which can be used to detect changes in the routes which are managed by the operator. The changes are detected using the netlink kernel interface, filtered for route changes.
 

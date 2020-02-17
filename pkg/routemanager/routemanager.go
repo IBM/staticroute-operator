@@ -2,6 +2,7 @@ package routemanager
 
 import (
 	"reflect"
+	"syscall"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -120,7 +121,10 @@ loop:
 			}
 		case params := <-r.registerRoute:
 			nlRoute := params.route.toNetLinkRoute()
-			if err := r.nlRouteAddFunc(&nlRoute); err != nil {
+			/* If syscall returns EEXIST (file exists), it means the route already existing.
+			   There is no evidence that we created is before a crash, or someone else.
+			   We assume we created it and so start managing it again. */
+			if err := r.nlRouteAddFunc(&nlRoute); err != nil && syscall.EEXIST.Error() != err.Error() {
 				params.err <- err
 				break
 			}
@@ -132,8 +136,7 @@ loop:
 					nlRoute := params.route.toNetLinkRoute()
 					err := r.nlRouteDelFunc(&nlRoute)
 					/* We always remove the route from the managed ones, regardless of the error from the lower layer.
-					   Error supposed to happen only when the route is already missing, which was reported to the watchers, so they know.
-					*/
+					   Error supposed to happen only when the route is already missing, which was reported to the watchers, so they know. */
 					r.managedRoutes = append(r.managedRoutes[:index], r.managedRoutes[index+1:]...)
 					params.err <- err
 					break
