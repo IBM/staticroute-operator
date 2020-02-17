@@ -92,7 +92,7 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 
 	routes := &iksv1.StaticRouteList{}
 	if err := r.client.List(context.Background(), routes); err != nil {
-		reqLogger.Error(err, "Unable to fetch CRDs")
+		reqLogger.Error(err, "Unable to fetch CRD")
 		return reconcile.Result{}, err
 	}
 
@@ -104,7 +104,7 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 		infoLogger: reqLogger.Info,
 	}
 	if err := nf.delete(routes); err != nil {
-		reqLogger.Error(err, "Unable to update CRD")
+		reqLogger.Error(err, "Unable to update CR")
 		return reconcile.Result{}, err
 	}
 
@@ -139,10 +139,9 @@ func (nf *nodeFinder) delete(routes *iksv1.StaticRouteList) error {
 
 func (nf *nodeFinder) findNode(route *iksv1.StaticRoute) int {
 	for i, status := range route.Status.NodeStatus {
-		if status.Hostname != nf.nodeName {
-			continue
+		if status.Hostname == nf.nodeName {
+			return i
 		}
-		return i
 	}
 
 	return -1
