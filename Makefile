@@ -22,17 +22,17 @@ dev-run-operator-local: build-operator
 	$(eval export NODE_HOSTNAME=$(shell sh -c "kubectl get nodes -o jsonpath='{ $$.items[0].status.addresses[?(@.type==\"Hostname\")].address }'")) 
 	operator-sdk run --local --namespace=default --kubeconfig=$(KUBECONFIG)
 
-dev-run-operator-remote: dev-publish-image
+dev-run-operator-remote: dev-publish-image dev-apply-common-resources
 	cat deploy/operator.yaml | sed 's|REPLACE_IMAGE|$(REGISTRY_REPO)|g' > deploy/operator.dev.yaml
+	kubectl create -f deploy/operator.dev.yaml  || :
+
+dev-apply-common-resources:
 	kubectl create -f deploy/crds/iks.ibm.com_staticroutes_crd.yaml || :
 	kubectl create -f deploy/service_account.yaml  || :
 	kubectl create -f deploy/role.yaml  || :
 	kubectl create -f deploy/role_binding.yaml  || :
-	kubectl create -f deploy/operator.dev.yaml  || :
-	kubectl create -f deploy/crds/iks.ibm.com_v1_staticroute_cr.yaml  || :
 
 dev-cleanup-operator:
-	kubectl delete -f deploy/crds/iks.ibm.com_v1_staticroute_cr.yaml  || :
 	kubectl delete -f deploy/operator.dev.yaml  || :
 	kubectl delete -f deploy/role.yaml  || :
 	kubectl delete -f deploy/role_binding.yaml  || :
