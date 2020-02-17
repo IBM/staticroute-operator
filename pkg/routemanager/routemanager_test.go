@@ -23,6 +23,7 @@ func (m MockRouteWatcher) RouteDeleted(r Route) {
 
 var gMockUpdateChan chan<- netlink.RouteUpdate
 var gTestRoute = Route{Dst: net.IPNet{IP: net.IP{192, 168, 1, 0}, Mask: net.CIDRMask(24, 32)}, Gw: net.IP{192, 168, 1, 254}, Table: 254}
+var gTestRouteName = "name"
 
 func mockRouteSubscribe(u chan<- netlink.RouteUpdate, c <-chan struct{}) error {
 	gMockUpdateChan = u
@@ -59,11 +60,12 @@ func (m *testableRouteManager) stop() {
 func newTestableRouteManager() testableRouteManager {
 	return testableRouteManager{
 		rm: &routeManagerImpl{
+			managedRoutes:        make(map[string]Route),
 			nlRouteSubscribeFunc: mockRouteSubscribe,
 			nlRouteAddFunc:       dummyRouteAdd,
 			nlRouteDelFunc:       dummyRouteDel,
 			registerRoute:        make(chan routeManagerImplRegisterRouteParams),
-			deRegisterRoute:      make(chan routeManagerImplRegisterRouteParams),
+			deRegisterRoute:      make(chan routeManagerImplDeRegisterRouteParams),
 			registerWatcher:      make(chan RouteWatcher),
 			deRegisterWatcher:    make(chan RouteWatcher),
 		},
@@ -104,10 +106,10 @@ func TestNothingBlocks(t *testing.T) {
 	defer testable.stop()
 
 	mockWatcher := MockRouteWatcher{}
-	testable.rm.RegisterRoute(gTestRoute)
+	testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
 	testable.rm.RegisterWatcher(mockWatcher)
 
-	testable.rm.DeRegisterRoute(gTestRoute)
+	testable.rm.DeRegisterRoute(gTestRouteName)
 	testable.rm.DeRegisterWatcher(mockWatcher)
 }
 
@@ -156,7 +158,7 @@ func TestWatch(t *testing.T) {
 	defer testable.stop()
 
 	mockWatcher := MockRouteWatcher{routeDeletedCalledWith: make(chan Route)}
-	testable.rm.RegisterRoute(gTestRoute)
+	testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
 	testable.rm.RegisterWatcher(mockWatcher)
 
 	if gMockUpdateChan == nil {
@@ -169,7 +171,7 @@ func TestWatch(t *testing.T) {
 		t.Error("Route in update event must be the same which we sent in")
 	}
 
-	testable.rm.DeRegisterRoute(gTestRoute)
+	testable.rm.DeRegisterRoute(gTestRouteName)
 	testable.rm.DeRegisterWatcher(mockWatcher)
 }
 
@@ -194,7 +196,7 @@ func TestAddRouteSuccess(t *testing.T) {
 	}
 	testable.start()
 
-	go testable.rm.RegisterRoute(gTestRoute)
+	go testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
 	addedRoute := <-addCalledWith
 	if !addedRoute.Equal(gTestRoute.toNetLinkRoute()) {
 		t.Error("Route sent to netlink does not match with the original")
@@ -202,7 +204,7 @@ func TestAddRouteSuccess(t *testing.T) {
 	if len(testable.rm.(*routeManagerImpl).managedRoutes) != 1 {
 		t.Error("managedRoute slice must contain one element")
 	} else {
-		if !testable.rm.(*routeManagerImpl).managedRoutes[0].toNetLinkRoute().Equal(gTestRoute.toNetLinkRoute()) {
+		if !testable.rm.(*routeManagerImpl).managedRoutes[gTestRouteName].toNetLinkRoute().Equal(gTestRoute.toNetLinkRoute()) {
 			t.Error("Route stored in managedRoutes must be equal to the one which we created in the test")
 		}
 	}
@@ -219,13 +221,32 @@ func TestAddRouteFail(t *testing.T) {
 	}
 	testable.start()
 
-	go testable.rm.RegisterRoute(gTestRoute)
+	go testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
 	addedRoute := <-addCalledWith
 	if !addedRoute.Equal(gTestRoute.toNetLinkRoute()) {
 		t.Error("Route sent to netlink does not match with the original")
 	}
 	if len(testable.rm.(*routeManagerImpl).managedRoutes) > 0 {
 		t.Error("managedRoute slice must be empty")
+	}
+
+	testable.stop()
+}
+
+func TestSameAddRouteFail(t *testing.T) {
+	testable := newTestableRouteManager()
+	testable.start()
+
+	testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
+	if len(testable.rm.(*routeManagerImpl).managedRoutes) != 1 {
+		t.Error("managedRoute slice must contain the added route")
+	}
+	err := testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
+	if err == nil {
+		t.Error("Adding the same route for the second time shall fail")
+	}
+	if len(testable.rm.(*routeManagerImpl).managedRoutes) != 1 {
+		t.Error("managedRoute slice must contain the added route")
 	}
 
 	testable.stop()
@@ -239,9 +260,9 @@ func TestDelRouteAlreadyDeleted(t *testing.T) {
 		return errors.New(syscall.ESRCH.Error())
 	}
 	testable.start()
-	testable.rm.RegisterRoute(gTestRoute)
+	testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
 
-	go testable.rm.DeRegisterRoute(gTestRoute)
+	go testable.rm.DeRegisterRoute(gTestRouteName)
 	deletedRoute := <-delCalledWith
 	if !deletedRoute.Equal(gTestRoute.toNetLinkRoute()) {
 		t.Error("Route sent to netlink does not match with the original")
@@ -261,9 +282,9 @@ func TestDelRouteUnknownError(t *testing.T) {
 		return errors.New("bla")
 	}
 	testable.start()
-	testable.rm.RegisterRoute(gTestRoute)
+	testable.rm.RegisterRoute(gTestRouteName, gTestRoute)
 
-	go testable.rm.DeRegisterRoute(gTestRoute)
+	go testable.rm.DeRegisterRoute(gTestRouteName)
 	deletedRoute := <-delCalledWith
 	if !deletedRoute.Equal(gTestRoute.toNetLinkRoute()) {
 		t.Error("Route sent to netlink does not match with the original")
@@ -272,5 +293,15 @@ func TestDelRouteUnknownError(t *testing.T) {
 		t.Error("managedRoute slice must still contain the route, which couldn't be removed due to an unknown error")
 	}
 
+	testable.stop()
+}
+
+func TestDelRouteWhichIsNotRegistered(t *testing.T) {
+	testable := newTestableRouteManager()
+	testable.start()
+	err := testable.rm.DeRegisterRoute(gTestRouteName)
+	if err.Error() != "Route could not found" {
+		t.Error("Deregistration shall fail due to asking for a non-managed route")
+	}
 	testable.stop()
 }

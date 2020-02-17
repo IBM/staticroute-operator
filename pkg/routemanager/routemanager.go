@@ -1,6 +1,7 @@
 package routemanager
 
 import (
+	"errors"
 	"reflect"
 	"syscall"
 
@@ -9,44 +10,51 @@ import (
 )
 
 type routeManagerImpl struct {
-	managedRoutes        []Route
+	managedRoutes        map[string]Route
 	watchers             []RouteWatcher
 	nlRouteSubscribeFunc func(chan<- netlink.RouteUpdate, <-chan struct{}) error
 	nlRouteAddFunc       func(route *netlink.Route) error
 	nlRouteDelFunc       func(route *netlink.Route) error
 	registerRoute        chan routeManagerImplRegisterRouteParams
-	deRegisterRoute      chan routeManagerImplRegisterRouteParams
+	deRegisterRoute      chan routeManagerImplDeRegisterRouteParams
 	registerWatcher      chan RouteWatcher
 	deRegisterWatcher    chan RouteWatcher
 }
 
 type routeManagerImplRegisterRouteParams struct {
+	name  string
 	route Route
 	err   chan<- error
+}
+
+type routeManagerImplDeRegisterRouteParams struct {
+	name string
+	err  chan<- error
 }
 
 //New creates a RouteManager for production use. It populates the routeManagerImpl structure with the final pointers to netlink package's functions.
 func New() RouteManager {
 	return &routeManagerImpl{
+		managedRoutes:        make(map[string]Route),
 		nlRouteSubscribeFunc: netlink.RouteSubscribe,
 		nlRouteAddFunc:       netlink.RouteAdd,
 		nlRouteDelFunc:       netlink.RouteDel,
 		registerRoute:        make(chan routeManagerImplRegisterRouteParams),
-		deRegisterRoute:      make(chan routeManagerImplRegisterRouteParams),
+		deRegisterRoute:      make(chan routeManagerImplDeRegisterRouteParams),
 		registerWatcher:      make(chan RouteWatcher),
 		deRegisterWatcher:    make(chan RouteWatcher),
 	}
 }
 
-func (r *routeManagerImpl) RegisterRoute(route Route) error {
+func (r *routeManagerImpl) RegisterRoute(name string, route Route) error {
 	errChan := make(chan error)
-	r.registerRoute <- routeManagerImplRegisterRouteParams{route, errChan}
+	r.registerRoute <- routeManagerImplRegisterRouteParams{name, route, errChan}
 	return <-errChan
 }
 
-func (r routeManagerImpl) DeRegisterRoute(route Route) error {
+func (r *routeManagerImpl) DeRegisterRoute(name string) error {
 	errChan := make(chan error)
-	r.deRegisterRoute <- routeManagerImplRegisterRouteParams{route, errChan}
+	r.deRegisterRoute <- routeManagerImplDeRegisterRouteParams{name, errChan}
 	return <-errChan
 }
 
@@ -120,6 +128,10 @@ loop:
 				}
 			}
 		case params := <-r.registerRoute:
+			if _, alreadyExists := r.managedRoutes[params.name]; alreadyExists {
+				params.err <- errors.New("Route with the same Name already registered")
+				break
+			}
 			nlRoute := params.route.toNetLinkRoute()
 			/* If syscall returns EEXIST (file exists), it means the route already existing.
 			   There is no evidence that we created is before a crash, or someone else.
@@ -128,23 +140,23 @@ loop:
 				params.err <- err
 				break
 			}
-			r.managedRoutes = append(r.managedRoutes, params.route)
+			r.managedRoutes[params.name] = params.route
 			params.err <- nil
 		case params := <-r.deRegisterRoute:
-			for index, item := range r.managedRoutes {
-				if params.route.equal(item) {
-					nlRoute := params.route.toNetLinkRoute()
-					/* We remove the route from the managed ones, regardless of the ESRCH (no such process) error from the lower layer.
-					   Error supposed to happen only when the route is already missing, which was reported to the watchers, so they know. */
-					if err := r.nlRouteDelFunc(&nlRoute); err != nil && syscall.ESRCH.Error() != err.Error() {
-						params.err <- err
-						break
-					}
-					r.managedRoutes = append(r.managedRoutes[:index], r.managedRoutes[index+1:]...)
-					params.err <- nil
-					break
-				}
+			item, found := r.managedRoutes[params.name]
+			if !found {
+				params.err <- errors.New("Route could not found")
+				break
 			}
+			nlRoute := item.toNetLinkRoute()
+			/* We remove the route from the managed ones, regardless of the ESRCH (no such process) error from the lower layer.
+			   Error supposed to happen only when the route is already missing, which was reported to the watchers, so they know. */
+			if err := r.nlRouteDelFunc(&nlRoute); err != nil && syscall.ESRCH.Error() != err.Error() {
+				params.err <- err
+				break
+			}
+			delete(r.managedRoutes, params.name)
+			params.err <- nil
 		}
 	}
 }
