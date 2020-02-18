@@ -1,60 +1,116 @@
 package routemanager
 
 import (
+	"errors"
+	"reflect"
+	"syscall"
+
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
 
 type routeManagerImpl struct {
-	managedRoutes     []Route
-	watchers          []RouteWatcher
-	nlSubscribeFunc   func(chan<- netlink.RouteUpdate, <-chan struct{}) error
-	nlAddRouteFunc    func(route *netlink.Route) error
-	nlDelRouteFunc    func(route *netlink.Route) error
-	registerRoute     chan routeManagerImplRegisterRouteParams
-	deRegisterRoute   chan routeManagerImplRegisterRouteParams
-	registerWatcher   chan RouteWatcher
-	deregisterWatcher chan RouteWatcher
+	managedRoutes         map[string]Route
+	watchers              []RouteWatcher
+	nlRouteSubscribeFunc  func(chan<- netlink.RouteUpdate, <-chan struct{}) error
+	nlRouteAddFunc        func(route *netlink.Route) error
+	nlRouteDelFunc        func(route *netlink.Route) error
+	registerRouteChan     chan routeManagerImplRegisterRouteParams
+	deRegisterRouteChan   chan routeManagerImplDeRegisterRouteParams
+	registerWatcherChan   chan RouteWatcher
+	deRegisterWatcherChan chan RouteWatcher
 }
 
 type routeManagerImplRegisterRouteParams struct {
+	name  string
 	route Route
 	err   chan<- error
 }
 
-//Init creates a RouteManager for production use. It populates the routeManagerImpl structure with the final pointers to netlink package's functions.
-func Init() RouteManager {
+type routeManagerImplDeRegisterRouteParams struct {
+	name string
+	err  chan<- error
+}
+
+//New creates a RouteManager for production use. It populates the routeManagerImpl structure with the final pointers to netlink package's functions.
+func New() RouteManager {
 	return &routeManagerImpl{
-		nlSubscribeFunc:   netlink.RouteSubscribe,
-		nlAddRouteFunc:    netlink.RouteAdd,
-		nlDelRouteFunc:    netlink.RouteDel,
-		registerRoute:     make(chan routeManagerImplRegisterRouteParams),
-		deRegisterRoute:   make(chan routeManagerImplRegisterRouteParams),
-		registerWatcher:   make(chan RouteWatcher),
-		deregisterWatcher: make(chan RouteWatcher),
+		managedRoutes:         make(map[string]Route),
+		nlRouteSubscribeFunc:  netlink.RouteSubscribe,
+		nlRouteAddFunc:        netlink.RouteAdd,
+		nlRouteDelFunc:        netlink.RouteDel,
+		registerRouteChan:     make(chan routeManagerImplRegisterRouteParams),
+		deRegisterRouteChan:   make(chan routeManagerImplDeRegisterRouteParams),
+		registerWatcherChan:   make(chan RouteWatcher),
+		deRegisterWatcherChan: make(chan RouteWatcher),
 	}
 }
 
-func (r *routeManagerImpl) RegisterRoute(route Route) error {
+func (r *routeManagerImpl) RegisterRoute(name string, route Route) error {
 	errChan := make(chan error)
-	r.registerRoute <- routeManagerImplRegisterRouteParams{route, errChan}
+	r.registerRouteChan <- routeManagerImplRegisterRouteParams{name, route, errChan}
 	return <-errChan
 }
 
-func (r routeManagerImpl) DeRegisterRoute(route Route) error {
+func (r *routeManagerImpl) registerRoute(params routeManagerImplRegisterRouteParams) {
+	if _, alreadyExists := r.managedRoutes[params.name]; alreadyExists {
+		params.err <- errors.New("Route with the same Name already registered")
+		return
+	}
+	nlRoute := params.route.toNetLinkRoute()
+	/* If syscall returns EEXIST (file exists), it means the route already existing.
+	   There is no evidence that we created is before a crash, or someone else.
+	   We assume we created it and so start managing it again. */
+	if err := r.nlRouteAddFunc(&nlRoute); err != nil && syscall.EEXIST.Error() != err.Error() {
+		params.err <- err
+		return
+	}
+	r.managedRoutes[params.name] = params.route
+	params.err <- nil
+}
+
+func (r *routeManagerImpl) DeRegisterRoute(name string) error {
 	errChan := make(chan error)
-	r.deRegisterRoute <- routeManagerImplRegisterRouteParams{route, errChan}
+	r.deRegisterRouteChan <- routeManagerImplDeRegisterRouteParams{name, errChan}
 	return <-errChan
 }
 
-func (r *routeManagerImpl) RegisterWatcher(w RouteWatcher) error {
-	r.registerWatcher <- w
-	return nil
+func (r *routeManagerImpl) deRegisterRoute(params routeManagerImplDeRegisterRouteParams) {
+	item, found := r.managedRoutes[params.name]
+	if !found {
+		params.err <- errors.New("Route could not found")
+		return
+	}
+	nlRoute := item.toNetLinkRoute()
+	/* We remove the route from the managed ones, regardless of the ESRCH (no such process) error from the lower layer.
+	   Error supposed to happen only when the route is already missing, which was reported to the watchers, so they know. */
+	if err := r.nlRouteDelFunc(&nlRoute); err != nil && syscall.ESRCH.Error() != err.Error() {
+		params.err <- err
+		return
+	}
+	delete(r.managedRoutes, params.name)
+	params.err <- nil
 }
 
-func (r *routeManagerImpl) DeRegisterWatcher(w RouteWatcher) error {
-	r.deregisterWatcher <- w
-	return nil
+func (r *routeManagerImpl) RegisterWatcher(w RouteWatcher) {
+	r.registerWatcherChan <- w
+}
+
+func (r *routeManagerImpl) registerWatcher(w RouteWatcher) {
+	r.watchers = append(r.watchers, w)
+}
+
+func (r *routeManagerImpl) DeRegisterWatcher(w RouteWatcher) {
+	r.deRegisterWatcherChan <- w
+}
+
+func (r *routeManagerImpl) deRegisterWatcher(w RouteWatcher) {
+	for index, item := range r.watchers {
+		if reflect.DeepEqual(item, w) {
+			r.watchers = append(r.watchers[:index], r.watchers[index+1:]...)
+			break
+		}
+	}
 }
 
 func (r Route) toNetLinkRoute() netlink.Route {
@@ -65,6 +121,17 @@ func (r Route) toNetLinkRoute() netlink.Route {
 	}
 }
 
+/* This version of equal shall be used everywhere in this package.
+   Netlink also does have an Equal function, however if we use that with
+   mixing netlink.Route and routemanager.Route input, it will report false.
+   The reason is that netlink.Route has a lot of additional properties which
+   routemanager.Route doesn't (type, protocol, linkindex, etc.). So we need
+   to convert back and forth the netlink.Route instances before comparing them
+   to zero out the fields which we do not store in this package. */
+func (r Route) equal(x Route) bool {
+	return r.toNetLinkRoute().Equal(x.toNetLinkRoute())
+}
+
 func fromNetLinkRoute(netlinkRoute netlink.Route) Route {
 	return Route{
 		Dst:   *netlinkRoute.Dst,
@@ -73,9 +140,25 @@ func fromNetLinkRoute(netlinkRoute netlink.Route) Route {
 	}
 }
 
-func (r *routeManagerImpl) Run(stopChan chan struct{}) {
+func (r *routeManagerImpl) notifyWatchers(update netlink.RouteUpdate) {
+	if update.Type != unix.RTM_DELROUTE {
+		return
+	}
+	for _, route := range r.managedRoutes {
+		if route.equal(fromNetLinkRoute(update.Route)) {
+			for _, watcher := range r.watchers {
+				watcher.RouteDeleted(fromNetLinkRoute(update.Route))
+			}
+			break
+		}
+	}
+}
+
+func (r *routeManagerImpl) Run(stopChan chan struct{}) error {
 	updateChan := make(chan netlink.RouteUpdate)
-	r.nlSubscribeFunc(updateChan, stopChan)
+	if err := r.nlRouteSubscribeFunc(updateChan, stopChan); err != nil {
+		return err
+	}
 loop:
 	for {
 		select {
@@ -83,41 +166,18 @@ loop:
 			if !ok {
 				break loop
 			}
-			if update.Type != unix.RTM_DELROUTE {
-				break
-			}
-			for _, route := range r.managedRoutes {
-				if route.toNetLinkRoute().Equal(update.Route) {
-					for _, watcher := range r.watchers {
-						watcher.RouteDeleted(fromNetLinkRoute(update.Route))
-					}
-					break
-				}
-			}
+			r.notifyWatchers(update)
 		case <-stopChan:
 			break loop
-		case watcher := <-r.registerWatcher:
-			r.watchers = append(r.watchers, watcher)
-		case watcher := <-r.deregisterWatcher:
-			for index, item := range r.watchers {
-				if item == watcher {
-					r.watchers = append(r.watchers[:index], r.watchers[index+1:]...)
-					break
-				}
-			}
-		case params := <-r.registerRoute:
-			//TODO create route
-			r.managedRoutes = append(r.managedRoutes, params.route)
-			params.err <- nil
-		case params := <-r.deRegisterRoute:
-			for index, item := range r.managedRoutes {
-				if params.route.toNetLinkRoute().Equal(item.toNetLinkRoute()) {
-					//TODO remove route
-					r.managedRoutes = append(r.managedRoutes[:index], r.managedRoutes[index+1:]...)
-					params.err <- nil
-					break
-				}
-			}
+		case watcher := <-r.registerWatcherChan:
+			r.registerWatcher(watcher)
+		case watcher := <-r.deRegisterWatcherChan:
+			r.deRegisterWatcher(watcher)
+		case params := <-r.registerRouteChan:
+			r.registerRoute(params)
+		case params := <-r.deRegisterRouteChan:
+			r.deRegisterRoute(params)
 		}
 	}
+	return nil
 }

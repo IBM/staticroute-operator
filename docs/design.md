@@ -111,11 +111,15 @@ TODO: add package path
 
 ## Other packages
 ### Static route manager
-Since the IP routes on the nodes are essentially forming a state (in the kernel), those need to have a representation in the operator's scope and the controller loops (as state-less layers) can not own this data. This package provides ownership for the IP routes which are created by the operator. The package provides a permanent go-routine with function interfaces to manage static routes, including creating, deleting and querying them.
+Since the IP routes on the nodes are essentially forming a state (in the kernel), those need to have a representation in the operator's scope and the controller loops (as state-less layers) can not own this data. This package provides ownership for the IP routes which are created by the operator. The package provides a permanent go-routine with function interfaces to manage static routes, including creating and deleting them.
 
-The package, moreover gives an event source which can be used to detect changes in the routes which are managed by the operator. The changes are detected using the netlink kernel interface, filtered for route changes. When a route add or delete request is handled, it shall be double-checked with the same event interface, before returning the request result to the sender (i.e. to return only if the route change is reported back by the kernel).
+When a route registration fails (see exception), it is not added to the managed route list and the error is reported to the requestor. When the error is "file exists" (EEXIST = Errno(0x11)) it is accepted, assuming the route is created by ourselves, probably before a crash.
 
-TODO: add package path
+The package gives an event source which can be used to detect changes in the routes which are managed by the operator. The changes are detected using the netlink kernel interface, filtered for route changes.
+
+When a managed route is deleted by an external entity, it is not auto-removed from the managed routes. It is the task of the event handler, so it has to deregister the route (and re-register if needed). Consequently if a route deletion during the deregistration causes error (route does not exist) it is still removed from the managed route list. Other errors are reported back to the requestor.
+
+The code is under `pkg/routemanager`
 
 ## Metrics
 TODO
