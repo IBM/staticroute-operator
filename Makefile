@@ -60,8 +60,8 @@ dev-apply-common-resources:
 	kubectl create -f deploy/role_binding.yaml  || :
 
 dev-cleanup-operator:
+	kubectl delete -f deploy/crds/iks.ibm.com_staticroutes_crd.yaml  || :
 	kubectl delete -f deploy/operator.dev.yaml  || :
 	kubectl delete -f deploy/role.yaml  || :
 	kubectl delete -f deploy/role_binding.yaml  || :
 	kubectl delete -f deploy/service_account.yaml  || :
-	kubectl delete -f deploy/crds/iks.ibm.com_staticroutes_crd.yaml  || :
