@@ -99,7 +99,7 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 	nf := nodeFinder{
 		nodeName: request.Name,
 		updateCallback: func(route *iksv1.StaticRoute) error {
-			return r.client.Update(context.Background(), route)
+			return r.client.Status().Update(context.Background(), route)
 		},
 		infoLogger: reqLogger.Info,
 	}
