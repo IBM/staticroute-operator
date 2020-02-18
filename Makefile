@@ -12,7 +12,7 @@ _calculate-build-number:
 
 lint:
 ifdef GOLANGCI_LINT_EXISTS
-	golangci-lint run
+	golangci-lint run --verbose --timeout 3m
 else
 	@echo "golangci-lint is not installed"
 endif

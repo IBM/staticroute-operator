@@ -30,3 +30,9 @@ Once you have made changes in the source, you have two option to run and test yo
      - you can remove the operator resources using `make dev-cleanup-operator` target
   2. Run as a Go program on your local development environment
      - run `make dev-run-operator-local`
+
+# Publishing the operator
+* Commit message guidelines
+  - since semantic versioning introduced with format vMAJOR.MINOR.PATCH, commit messages must always contain one of the following keywords:
+    - \_major\_ , \_minor\_ , \_patch\_ to increase the version number standing at the specified position
+  - publishing the static route operator to docker registry can be made by adding \_publish\_ keyword to the commit message with the mandatory semver keyword described above
