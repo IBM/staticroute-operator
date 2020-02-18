@@ -44,13 +44,13 @@ dev-publish-image: _calculate-build-number build-operator
 	docker push $(REGISTRY_REPO):$(CONTAINER_VERSION)
 	@echo "\n image: $(REGISTRY_REPO):$(CONTAINER_VERSION)"
 
-dev-run-operator-local: build-operator
+dev-run-operator-local: build-operator dev-apply-common-resources
 	# pick the first node to test run
 	$(eval export NODE_HOSTNAME=$(shell sh -c "kubectl get nodes -o jsonpath='{ $$.items[0].status.addresses[?(@.type==\"Hostname\")].address }'")) 
 	operator-sdk run --local --namespace=default --kubeconfig=$(KUBECONFIG)
 
 dev-run-operator-remote: dev-publish-image dev-apply-common-resources
-	cat deploy/operator.yaml | sed 's|REPLACE_IMAGE|$(REGISTRY_REPO)|g' > deploy/operator.dev.yaml
+	cat deploy/operator.yaml | sed 's|REPLACE_IMAGE|$(REGISTRY_REPO):$(CONTAINER_VERSION)|g' > deploy/operator.dev.yaml
 	kubectl create -f deploy/operator.dev.yaml  || :
 
 dev-apply-common-resources:
