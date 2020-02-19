@@ -22,7 +22,7 @@ import (
 	"strings"
 	"syscall"
 
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var log = logf.Log.WithName("ip_cmd")
@@ -53,14 +53,14 @@ func ExecIpCmd(cmdStr string) (string, int, error) {
 			// defined for both Unix and Windows and in both cases has
 			// an ExitStatus() method with the same signature.
 			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-				return string(stderr.Bytes()), status.ExitStatus(), nil
+				return stderr.String(), status.ExitStatus(), nil
 			}
 		} else {
-			return string(stderr.Bytes()), 1, err
+			return stderr.String(), 1, err
 		}
 	}
 
-	log.Info("ip command executed", "command", strings.Join(cmdStrArr, " "), "output", string(stdout.Bytes()), "error", string(stderr.Bytes()))
+	log.Info("ip command executed", "command", strings.Join(cmdStrArr, " "), "output", stdout.String(), "error", stderr.String())
 
-	return string(stdout.Bytes()), 0, nil
+	return stdout.String(), 0, nil
 }

@@ -202,7 +202,10 @@ func main() {
 		// Create RouteManager
 		routeManager := routemanager.New()
 		stopChan := make(chan struct{})
-		go routeManager.Run(stopChan)
+		go func() {
+			err := routeManager.Run(stopChan)
+			log.Error(err, "")
+		}()
 
 		// Start static route controller
 		if err := staticroute.Add(mgr, staticroute.ManagerOptions{
