@@ -92,8 +92,7 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 
 	// Fetch the StaticRoute instance
 	instance := &iksv1.StaticRoute{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
-	if err != nil {
+	if err := r.client.Get(context.TODO(), request.NamespacedName, instance); err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
@@ -107,7 +106,6 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 
 	isNew := len(instance.Finalizers) == 0
 	if isNew {
-		// We are the first one
 		reqLogger.Info("Adding Finalizer for the StaticRoute")
 		if err := r.addFinalizer(instance); err != nil {
 			reqLogger.Error(err, "Failed to update StaticRoute with finalizer")
@@ -180,8 +178,7 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 		if len(instance.Status.NodeStatus) == 0 {
 			reqLogger.Info("Removing finalizer for StaticRoute")
 			instance.SetFinalizers(nil)
-			err = r.client.Update(context.TODO(), instance)
-			if err != nil {
+			if err := r.client.Update(context.TODO(), instance); err != nil {
 				return reconcile.Result{}, err
 			}
 		}
@@ -191,8 +188,7 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 	// Delay status update until this point, so it will not be executed if CR delete is ongoing
 	if addToStatusIfNotExist(instance, r.options.Hostname) {
 		reqLogger.Info("Update the StaticRoute status", "staticroute", instance.Status)
-		err = r.client.Status().Update(context.TODO(), instance)
-		if err != nil {
+		if err := r.client.Status().Update(context.TODO(), instance); err != nil {
 			reqLogger.Error(err, "failed to update the staticroute")
 			return reconcile.Result{}, err
 		}
