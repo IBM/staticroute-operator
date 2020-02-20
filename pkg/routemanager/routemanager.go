@@ -166,9 +166,10 @@ func (r *routeManagerImpl) notifyWatchers(update netlink.RouteUpdate) {
 		return
 	}
 	for _, route := range r.managedRoutes {
-		if route.equal(fromNetLinkRoute(update.Route)) {
+		updateRoute := fromNetLinkRoute(update.Route)
+		if route.equal(updateRoute) {
 			for _, watcher := range r.watchers {
-				watcher.RouteDeleted(fromNetLinkRoute(update.Route))
+				watcher.RouteDeleted(updateRoute)
 			}
 			break
 		}
@@ -180,16 +181,15 @@ func (r *routeManagerImpl) Run(stopChan chan struct{}) error {
 	if err := r.nlRouteSubscribeFunc(updateChan, stopChan); err != nil {
 		return err
 	}
-loop:
 	for {
 		select {
 		case update, ok := <-updateChan:
 			if !ok {
-				break loop
+				return nil
 			}
 			r.notifyWatchers(update)
 		case <-stopChan:
-			break loop
+			return nil
 		case watcher := <-r.registerWatcherChan:
 			r.registerWatcher(watcher)
 		case watcher := <-r.deRegisterWatcherChan:
@@ -200,5 +200,4 @@ loop:
 			r.deRegisterRoute(params)
 		}
 	}
-	return nil
 }
