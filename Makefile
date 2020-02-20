@@ -32,6 +32,8 @@ vet:
 test:
 	go test -race -timeout 60s -covermode=atomic -coverprofile=cover.out ${GO_PACKAGES}
 
+validate-code: lint formatcheck vet test
+
 update-operator-resource:
 	operator-sdk generate crds
 	operator-sdk generate k8s
