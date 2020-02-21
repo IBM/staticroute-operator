@@ -12,7 +12,7 @@ _calculate-build-number:
 
 lint:
 ifdef GOLANGCI_LINT_EXISTS
-	golangci-lint run
+	golangci-lint run --verbose --timeout 3m
 else
 	@echo "golangci-lint is not installed"
 endif
@@ -31,6 +31,8 @@ vet:
 
 test:
 	go test -race -timeout 60s -covermode=atomic -coverprofile=cover.out ${GO_PACKAGES}
+
+validate-code: lint formatcheck vet test
 
 update-operator-resource:
 	operator-sdk generate crds
