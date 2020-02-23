@@ -3,7 +3,7 @@
 set -e
 
 NEXT_VERSION=v$(./scripts/get-next-version-by-commit.sh "$TRAVIS_COMMIT_MESSAGE")
-git remote set-url --push origin https://${GH_TOKEN}@github.com/${GH_REPO}.git
+git remote set-url --push origin https://${GH_TOKEN}@${GH_REPO}.git
 git tag build-${TRAVIS_BUILD_NUMBER}
 git tag ${NEXT_VERSION}
 git push origin ${TRAVIS_BRANCH} --tags

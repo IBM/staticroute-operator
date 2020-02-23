@@ -30,8 +30,6 @@ services:
 - docker
 
 before_install:
-#if the commit message doesn't contain change type, stop the build
-- echo ${TRAVIS_COMMIT_MESSAGE} | grep -o "_major_\|_minor_\|_patch_" || travis_terminate 1
 - curl -LO https://github.com/operator-framework/operator-sdk/releases/download/${OP_SDK_RELEASE_VERSION}/operator-sdk-${OP_SDK_RELEASE_VERSION}-x86_64-linux-gnu
 - chmod +x operator-sdk-${OP_SDK_RELEASE_VERSION}-x86_64-linux-gnu && sudo mv operator-sdk-${OP_SDK_RELEASE_VERSION}-x86_64-linux-gnu /usr/local/bin/operator-sdk
 - curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $GOPATH/bin ${GOLANGCI_LINT_VERSION}
@@ -43,7 +41,6 @@ script:
   - |
     export REGISTRY_URL=$(echo "${DOCKER_REGISTRY_LIST}" | tr ',' ' ' | cut -d' ' -f1)
     export REGISTRY_REPO=${REGISTRY_URL}/${DOCKER_IMAGE_NAME}
-    make validate-code || travis_terminate 1
     make build-operator || travis_terminate 1
   
 deploy:
