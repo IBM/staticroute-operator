@@ -38,7 +38,7 @@ update-operator-resource:
 	operator-sdk generate crds
 	operator-sdk generate k8s
 
-build-operator: update-operator-resource lint formatcheck vet test
+build-operator: update-operator-resource validate-code
 	operator-sdk build $(REGISTRY_REPO)
 
 dev-publish-image: _calculate-build-number build-operator
