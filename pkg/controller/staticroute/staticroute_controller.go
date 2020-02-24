@@ -23,7 +23,6 @@ import (
 
 	iksv1 "github.com/IBM/staticroute-operator/pkg/apis/iks/v1"
 	"github.com/IBM/staticroute-operator/pkg/routemanager"
-	"github.com/vishvananda/netlink"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,8 +35,8 @@ import (
 )
 
 var (
-	//ZoneLable Kubernetes node label to determine node zone
-	ZoneLable = "failure-domain.beta.kubernetes.io/zone"
+	//ZoneLabel Kubernetes node label to determine node zone
+	ZoneLabel = "failure-domain.beta.kubernetes.io/zone"
 	//RouteTable Route table number for static routes
 	RouteTable = 254
 )
@@ -49,6 +48,7 @@ type ManagerOptions struct {
 	RouteManager routemanager.RouteManager
 	Hostname     string
 	Zone         string
+	RouteGet     func() (net.IP, error)
 }
 
 // ReconcileStaticRoute reconciles a StaticRoute object
@@ -89,12 +89,33 @@ var _ reconcile.Reconciler = &ReconcileStaticRoute{}
 // Reconcile reads that state of the cluster for a StaticRoute object and makes changes based on the state read
 // and what is in the StaticRoute.Spec
 func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	reqLogger := log.WithValues("Request.Name", request.Name)
+	params := reconcileImplParams{
+		request: request,
+		client:  r.client,
+		options: r.options,
+	}
+	return reconcileImpl(params)
+}
+
+type reconcileImplClient interface {
+	Get(context.Context, client.ObjectKey, runtime.Object) error
+	Update(context.Context, runtime.Object, ...client.UpdateOption) error
+	Status() client.StatusWriter
+}
+
+type reconcileImplParams struct {
+	request reconcile.Request
+	client  reconcileImplClient
+	options ManagerOptions
+}
+
+func reconcileImpl(params reconcileImplParams) (reconcile.Result, error) {
+	reqLogger := log.WithValues("Request.Name", params.request.Name)
 	reqLogger.Info("Reconciling StaticRoute")
 
 	// Fetch the StaticRoute instance
 	instance := &iksv1.StaticRoute{}
-	if err := r.client.Get(context.Background(), request.NamespacedName, instance); err != nil {
+	if err := params.client.Get(context.Background(), params.request.NamespacedName, instance); err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
@@ -110,23 +131,22 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 		instance: instance,
 	}
 
-	if !rw.isSameZone(r.options.Zone, ZoneLable) {
+	if !rw.isSameZone(params.options.Zone, ZoneLabel) {
 		// a zone is specified and the route is not for this zone, ignore
-		reqLogger.Info("Ignoring, zone does not match", "NodeZone", r.options.Zone, "CRZone", instance.GetLabels()[ZoneLable])
+		reqLogger.Info("Ignoring, zone does not match", "NodeZone", params.options.Zone, "CRZone", instance.GetLabels()[ZoneLabel])
 		return reconcile.Result{}, nil
 	}
-
-	if instance.GetDeletionTimestamp() != nil && rw.removeFromStatus(r.options.Hostname) {
+	if instance.GetDeletionTimestamp() != nil && rw.removeFromStatus(params.options.Hostname) {
 		// Here comes the DELETE logic
 		reqLogger.Info("Deregistering route")
-		err := r.options.RouteManager.DeRegisterRoute(request.Name)
+		err := params.options.RouteManager.DeRegisterRoute(params.request.Name)
 		if err != nil {
 			reqLogger.Error(err, "Unable to deregister route")
 			return reconcile.Result{}, err
 		}
 
 		reqLogger.Info("Deleted status for StaticRoute", "status", instance.Status)
-		err = r.client.Status().Update(context.Background(), instance)
+		err = params.client.Status().Update(context.Background(), instance)
 		if err != nil {
 			reqLogger.Error(err, "Unable to update status of CR")
 			return reconcile.Result{}, err
@@ -136,7 +156,7 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 		if len(instance.Status.NodeStatus) == 0 {
 			reqLogger.Info("Removing finalizer for StaticRoute")
 			instance.SetFinalizers(nil)
-			if err := r.client.Update(context.Background(), instance); err != nil {
+			if err := params.client.Update(context.Background(), instance); err != nil {
 				reqLogger.Error(err, "Unable to delete finalizers")
 				return reconcile.Result{}, err
 			}
@@ -144,10 +164,10 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 		return reconcile.Result{}, nil
 	}
 
-	if rw.isNew() {
+	if instance.GetDeletionTimestamp() == nil {
 		reqLogger.Info("Adding Finalizer for the StaticRoute")
 		if rw.setFinalizer() {
-			if err := r.client.Update(context.Background(), rw.instance); err != nil {
+			if err := params.client.Update(context.Background(), rw.instance); err != nil {
 				reqLogger.Error(err, "Failed to update StaticRoute with finalizer")
 				return reconcile.Result{}, err
 			}
@@ -157,16 +177,16 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 	// If "gateway" is empty, we'll create the route through the default private network gateway
 	gateway := rw.getGateway()
 	if gateway == nil {
-		gwRoute, err := netlink.RouteGet(net.IP{10, 0, 0, 1})
+		defaultGateway, err := params.options.RouteGet()
 		if err != nil {
 			reqLogger.Error(err, "")
 			return reconcile.Result{}, err
 		}
-		reqLogger.Info(fmt.Sprintf("* %+v", gwRoute[0].Gw))
-		gateway = gwRoute[0].Gw
+		reqLogger.Info(fmt.Sprintf("* %+v", gateway))
+		gateway = defaultGateway
 	}
 
-	if !r.options.RouteManager.IsRegistered(request.Name) {
+	if !params.options.RouteManager.IsRegistered(params.request.Name) {
 		/*  Here comes the ADD logic
 		    This also runs if the CR was asked for deletion, but the operator did not run meanwhile.
 			In this case the route is still programmed to the kernel, so we register the route here
@@ -179,7 +199,7 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 		}
 		reqLogger.Info("Registering route")
 
-		err = r.options.RouteManager.RegisterRoute(request.Name, routemanager.Route{Dst: *ipnet, Gw: gateway, Table: RouteTable})
+		err = params.options.RouteManager.RegisterRoute(params.request.Name, routemanager.Route{Dst: *ipnet, Gw: gateway, Table: RouteTable})
 		if err != nil {
 			reqLogger.Error(err, "Unable to register route")
 			return reconcile.Result{}, err
@@ -187,9 +207,9 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 	}
 
 	// Delay status update until this point, so it will not be executed if CR delete is ongoing
-	if rw.addToStatus(r.options.Hostname, gateway) {
+	if rw.addToStatus(params.options.Hostname, gateway) {
 		reqLogger.Info("Update the StaticRoute status", "staticroute", instance.Status)
-		if err := r.client.Status().Update(context.Background(), instance); err != nil {
+		if err := params.client.Status().Update(context.Background(), instance); err != nil {
 			reqLogger.Error(err, "failed to update the staticroute")
 			return reconcile.Result{}, err
 		}
@@ -205,13 +225,9 @@ type routeWrapper struct {
 	instance *iksv1.StaticRoute
 }
 
-func (rw *routeWrapper) isNew() bool {
-	return len(rw.instance.GetFinalizers()) == 0 && rw.instance.GetDeletionTimestamp() == nil
-}
-
 //addFinalizer will add this attribute to the CR
 func (rw *routeWrapper) setFinalizer() bool {
-	if len(rw.instance.GetFinalizers()) == 0 {
+	if len(rw.instance.GetFinalizers()) != 0 {
 		return false
 	}
 	rw.instance.SetFinalizers([]string{"finalizer.iks.ibm.com"})
@@ -221,8 +237,10 @@ func (rw *routeWrapper) setFinalizer() bool {
 func (rw *routeWrapper) isSameZone(zone, label string) bool {
 	instanceZone := rw.instance.GetLabels()[label]
 
-	return instanceZone != "" && instanceZone != zone
+	return instanceZone == zone
 }
+
+// if zoneVal != "" && zoneVal != r.options.Zone
 
 // Returns nil like the underlaying net.ParseIP()
 func (rw *routeWrapper) getGateway() net.IP {
@@ -247,6 +265,7 @@ func (rw *routeWrapper) addToStatus(hostname string, gateway net.IP) bool {
 	if foundStatus {
 		return false
 	}
+
 	spec := rw.instance.Spec
 	spec.Gateway = gateway.String()
 	rw.instance.Status.NodeStatus = append(rw.instance.Status.NodeStatus, iksv1.StaticRouteNodeStatus{
