@@ -48,4 +48,5 @@ deploy:
     script: bash scripts/travis-provider-script.sh
     skip_cleanup: true
     on:
-      branch: master
+      all_branches: true
+      condition: $TRAVIS_BRANCH =~ ^(release-*)$

@@ -31,7 +31,7 @@ Once you have made changes in the source, you have two option to run and test yo
   2. Run as a Go program on your local development environment
      - run `make dev-run-operator-local`
 
-# Setting Travis-CI
+# Setting Travis-CI [WIP]
 If you want to test, build and publish your changes into your own personal repo after forking this project, you need to following variables set up in Travis instance associated to your github project:
   - DOCKER_IMAGE_NAME, this is the name of your docker image ie. myrepo/staticroute-operator
   - DOCKER_REGISTRY_LIST, you need at least one docker repository url to publish docker images. This is a comma separated list of repo urls.
@@ -41,8 +41,4 @@ If you want to test, build and publish your changes into your own personal repo 
   - and a set of variables that contains the docker password for each repository url ie. if you set `my.docker.repo.io,quay.io` in DOCKER_REGISTRY_LIST than you need a `my_docker_repo_io` and `quay_io` secrets with the corresponding passwords
   (Note: you should take care of GH_TOKEN and docker passwords to be non-visible secrets in Travis!)
 
-# Publishing the operator using Travis
-* Commit message guidelines
-  - since semantic versioning introduced with format vMAJOR.MINOR.PATCH, commit messages could contain one of the following keywords:
-    - \_major\_ , \_minor\_ , \_patch\_ to increase the version number standing at the specified position
-  - publishing the static route operator to docker registry can be made by adding \_publish\_ keyword to the commit message with the mandatory semver keyword described above (this only works if you have set the corresponding Travis variables, see above)
+# Publishing the operator using Travis [WIP]
