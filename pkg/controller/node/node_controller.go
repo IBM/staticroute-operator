@@ -74,11 +74,31 @@ type ReconcileNode struct {
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
+	params := reconcileImplParams{
+		request: request,
+		client:  r.client,
+	}
+	return reconcileImpl(params)
+}
+
+type reconcileImplClient interface {
+	Get(context.Context, client.ObjectKey, runtime.Object) error
+	Update(context.Context, runtime.Object, ...client.UpdateOption) error
+	List(context.Context, runtime.Object, ...client.ListOption) error
+	Status() client.StatusWriter
+}
+
+type reconcileImplParams struct {
+	request reconcile.Request
+	client  reconcileImplClient
+}
+
+func reconcileImpl(params reconcileImplParams) (reconcile.Result, error) {
+	reqLogger := log.WithValues("Request.Namespace", params.request.Namespace, "Request.Name", params.request.Name)
 
 	// Fetch the Node instance
 	node := &corev1.Node{}
-	if err := r.client.Get(context.Background(), request.NamespacedName, node); err == nil {
+	if err := params.client.Get(context.Background(), params.request.NamespacedName, node); err == nil {
 		return reconcile.Result{}, nil
 	} else if !errors.IsNotFound(err) {
 		// Error reading the object - requeue the request.
@@ -86,15 +106,15 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 	}
 
 	routes := &iksv1.StaticRouteList{}
-	if err := r.client.List(context.Background(), routes); err != nil {
+	if err := params.client.List(context.Background(), routes); err != nil {
 		reqLogger.Error(err, "Unable to fetch CRD")
 		return reconcile.Result{}, err
 	}
 
 	nf := nodeFinder{
-		nodeName: request.Name,
+		nodeName: params.request.Name,
 		updateCallback: func(route *iksv1.StaticRoute) error {
-			return r.client.Status().Update(context.Background(), route)
+			return params.client.Status().Update(context.Background(), route)
 		},
 		infoLogger: reqLogger.Info,
 	}
