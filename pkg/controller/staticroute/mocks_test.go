@@ -31,8 +31,8 @@ import (
 
 type reconcileImplClientMock struct {
 	client          reconcileImplClient
-	postfixGet      func(runtime.Object)
 	statusWriteMock client.StatusWriter
+	postfixGet      func(runtime.Object)
 	getErr          error
 	updateErr       error
 }
