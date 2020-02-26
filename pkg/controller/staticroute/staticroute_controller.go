@@ -182,7 +182,7 @@ func reconcileImpl(params reconcileImplParams) (reconcile.Result, error) {
 			reqLogger.Error(err, "")
 			return reconcile.Result{}, err
 		}
-		reqLogger.Info(fmt.Sprintf("* %+v", gateway))
+		reqLogger.Info(fmt.Sprintf("* %+v", defaultGateway))
 		gateway = defaultGateway
 	}
 
@@ -239,8 +239,6 @@ func (rw *routeWrapper) isSameZone(zone, label string) bool {
 
 	return instanceZone == zone
 }
-
-// if zoneVal != "" && zoneVal != r.options.Zone
 
 // Returns nil like the underlaying net.ParseIP()
 func (rw *routeWrapper) getGateway() net.IP {
