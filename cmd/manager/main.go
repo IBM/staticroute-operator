@@ -20,6 +20,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"runtime"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/IBM/staticroute-operator/pkg/controller/staticroute"
 	"github.com/IBM/staticroute-operator/pkg/routemanager"
 	"github.com/IBM/staticroute-operator/version"
+	"github.com/vishvananda/netlink"
 
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"
@@ -173,7 +175,7 @@ func main() {
 	}
 
 	labels := u.GetLabels()
-	zone := labels["failure-domain.beta.kubernetes.io/zone"]
+	zone := labels[staticroute.ZoneLabel]
 
 	log.Info(fmt.Sprintf("Node Hostname: %s", hostname))
 	log.Info(fmt.Sprintf("Node Zone: %s", zone))
@@ -210,6 +212,13 @@ func main() {
 			Hostname:     hostname,
 			Zone:         zone,
 			RouteManager: routeManager,
+			RouteGet: func() (net.IP, error) {
+				route, err := netlink.RouteGet(net.IP{10, 0, 0, 1})
+				if err != nil {
+					return nil, err
+				}
+				return route[0].Gw, nil
+			},
 		}); err != nil {
 			log.Error(err, "")
 			os.Exit(1)
