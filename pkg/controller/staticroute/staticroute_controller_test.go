@@ -74,6 +74,35 @@ func TestReconcileImplNotSameZone(t *testing.T) {
 	}
 }
 
+func TestReconcileImplNotDeleted(t *testing.T) {
+	route := newStaticRouteWithValues()
+	route.Status = iksv1.StaticRouteStatus{
+		NodeStatus: []iksv1.StaticRouteNodeStatus{
+			iksv1.StaticRouteNodeStatus{
+				Hostname: "hostname",
+			},
+		},
+	}
+	mockClient := reconcileImplClientMock{
+		client: newFakeClient(route),
+		postfixGet: func(obj runtime.Object) {
+			obj.(*iksv1.StaticRoute).SetDeletionTimestamp(&v1.Time{})
+		},
+	}
+	params := newReconcileImplParams(mockClient)
+	params.options.Hostname = "hostname2"
+	params.options.RouteManager = routeManagerMock{}
+
+	res, err := reconcileImpl(params)
+
+	if res != alreadyDeleted {
+		t.Error("Result must be alreadyDeleted")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+}
+
 func TestReconcileImplDeleted(t *testing.T) {
 	route := newStaticRouteWithValues()
 	route.Status = iksv1.StaticRouteStatus{
@@ -97,6 +126,37 @@ func TestReconcileImplDeleted(t *testing.T) {
 
 	if res != deletionFinished {
 		t.Error("Result must be deletionFinished")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+}
+
+func TestReconcileImplUpdated(t *testing.T) {
+	route := newStaticRouteWithValues()
+	route.Spec = iksv1.StaticRouteSpec{
+		Subnet:  "subnet2",
+		Gateway: "gateway",
+	}
+	route.Status = iksv1.StaticRouteStatus{
+		NodeStatus: []iksv1.StaticRouteNodeStatus{
+			iksv1.StaticRouteNodeStatus{
+				Hostname: "hostname",
+				State: iksv1.StaticRouteSpec{
+					Subnet:  "subnet",
+					Gateway: "gateway",
+				},
+			},
+		},
+	}
+	params := newReconcileImplParams(newFakeClient(route))
+	params.options.Hostname = "hostname"
+	params.options.RouteManager = routeManagerMock{}
+
+	res, err := reconcileImpl(params)
+
+	if res != updateFinished {
+		t.Error("Result must be updateFinished")
 	}
 	if err != nil {
 		t.Errorf("Error must be nil: %s", err.Error())
@@ -406,90 +466,5 @@ func TestRouteWrapperGetGatewayInvalid(t *testing.T) {
 
 	if gw != nil {
 		t.Errorf("Gateway must be nil: %s", gw.String())
-	}
-}
-
-func TestRouteWrapperGetGateway(t *testing.T) {
-	route := newStaticRouteWithValues()
-	route.Spec.Gateway = "10.0.0.1"
-	rw := routeWrapper{instance: route}
-
-	gw := rw.getGateway()
-
-	if gw.String() != "10.0.0.1" {
-		t.Errorf("Gateway must be `10.0.0.1`: %s", gw.String())
-	}
-}
-
-func TestRouteWrapperAddToStatus(t *testing.T) {
-	route := newStaticRouteWithValues()
-	rw := routeWrapper{instance: route}
-
-	added := rw.addToStatus("hostname", net.IP{10, 0, 0, 1})
-
-	if !added {
-		t.Error("Status must be added")
-	} else if len(route.Status.NodeStatus) != 1 {
-		t.Errorf("Status not added: %v", route.Status.NodeStatus)
-	} else if route.Status.NodeStatus[0].Hostname != "hostname" {
-		t.Errorf("First status must be `hostname`: %s", route.Status.NodeStatus[0].Hostname)
-	} else if route.Status.NodeStatus[0].State.Gateway != "10.0.0.1" {
-		t.Errorf("First status gateway must be `10.0.0.1`: %s", route.Status.NodeStatus[0].State.Gateway)
-	}
-}
-
-func TestRouteWrapperAddToStatusNotAdded(t *testing.T) {
-	route := newStaticRouteWithValues()
-	route.Status = iksv1.StaticRouteStatus{
-		NodeStatus: []iksv1.StaticRouteNodeStatus{
-			iksv1.StaticRouteNodeStatus{
-				Hostname: "hostname",
-			},
-		},
-	}
-	rw := routeWrapper{instance: route}
-
-	added := rw.addToStatus("hostname", net.IP{10, 0, 0, 1})
-
-	if added {
-		t.Error("Status must be not added")
-	}
-}
-
-func TestRouteWrapperRemoveFromStatusNotRemoved(t *testing.T) {
-	route := newStaticRouteWithValues()
-	route.Status = iksv1.StaticRouteStatus{
-		NodeStatus: []iksv1.StaticRouteNodeStatus{
-			iksv1.StaticRouteNodeStatus{
-				Hostname: "hostname",
-			},
-		},
-	}
-	rw := routeWrapper{instance: route}
-
-	removed := rw.removeFromStatus("hostname2")
-
-	if removed {
-		t.Error("Status must be not removed")
-	}
-}
-
-func TestRouteWrapperRemoveFromStatusRemoved(t *testing.T) {
-	route := newStaticRouteWithValues()
-	route.Status = iksv1.StaticRouteStatus{
-		NodeStatus: []iksv1.StaticRouteNodeStatus{
-			iksv1.StaticRouteNodeStatus{
-				Hostname: "hostname",
-			},
-		},
-	}
-	rw := routeWrapper{instance: route}
-
-	removed := rw.removeFromStatus("hostname")
-
-	if !removed {
-		t.Error("Status must be removed")
-	} else if len(route.Status.NodeStatus) != 0 {
-		t.Errorf("Statuses must be empty: %v", route.Status.NodeStatus)
 	}
 }
