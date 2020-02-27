@@ -17,9 +17,17 @@
 package node
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	iksv1 "github.com/IBM/staticroute-operator/pkg/apis/iks/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestFindNodeFound(t *testing.T) {
@@ -95,5 +103,139 @@ func TestDelete(t *testing.T) {
 		t.Errorf("Node deletion went fail")
 	} else if act := updateInputParam.Status.NodeStatus[0].Hostname + updateInputParam.Status.NodeStatus[1].Hostname; act != "foobar" {
 		t.Errorf("Not the right status was deleted 'foobar' == %s", act)
+	}
+}
+
+func TestReconcileImplNodeGetNodeFound(t *testing.T) {
+	mockClient := reconcileImplClientMock{
+		client: fake.NewFakeClient(),
+		get: func(context.Context, client.ObjectKey, runtime.Object) error {
+			return nil
+		},
+	}
+	params := newReconcileImplParams(mockClient)
+
+	res, err := reconcileImpl(params)
+
+	if res != nodeStillExists {
+		t.Error("Result must be nodeStillExists")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+}
+
+func TestReconcileImplNodeGetNodeFatalError(t *testing.T) {
+	mockClient := reconcileImplClientMock{
+		client: fake.NewFakeClient(),
+		get: func(context.Context, client.ObjectKey, runtime.Object) error {
+			return errors.New("fatal error")
+		},
+	}
+	params := newReconcileImplParams(mockClient)
+
+	res, err := reconcileImpl(params)
+
+	if res != nodeGetError {
+		t.Error("Result must be nodeGetError")
+	}
+	if err == nil {
+		t.Error("Error must be not nil")
+	}
+}
+
+func TestReconcileImplNodeCRListError(t *testing.T) {
+	//err "no kind is registered for the type v1."" because fake client doesn't have CRD
+	mockClient := reconcileImplClientMock{
+		client: fake.NewFakeClient(),
+		get: func(context.Context, client.ObjectKey, runtime.Object) error {
+			return kerrors.NewNotFound(schema.GroupResource{}, "name")
+		},
+	}
+	params := newReconcileImplParams(mockClient)
+
+	res, err := reconcileImpl(params)
+
+	if res != staticRouteListError {
+		t.Error("Result must be staticRouteListError")
+	}
+	if err == nil {
+		t.Error("Error must be not nil")
+	}
+}
+
+func TestReconcileDeleteError(t *testing.T) {
+	var statusUpdateCalled bool
+	statusWriteMock := statusWriterMock{
+		updateErr: errors.New("update failed"),
+	}
+	routes := &iksv1.StaticRouteList{}
+	mockClient := reconcileImplClientMock{
+		client:          newFakeClient(routes),
+		statusWriteMock: statusWriteMock,
+		get: func(context.Context, client.ObjectKey, runtime.Object) error {
+			return kerrors.NewNotFound(schema.GroupResource{}, "name")
+		},
+		list: func(ctx context.Context, obj runtime.Object, options ...client.ListOption) error {
+			iface := obj.(interface{})
+			routes := iface.(*iksv1.StaticRouteList)
+			routes.Items = []iksv1.StaticRoute{
+				iksv1.StaticRoute{
+					Status: iksv1.StaticRouteStatus{
+						NodeStatus: []iksv1.StaticRouteNodeStatus{
+							iksv1.StaticRouteNodeStatus{
+								Hostname: "CR",
+							},
+						},
+					},
+				},
+			}
+			return nil
+		},
+		status: func() client.StatusWriter {
+			statusUpdateCalled = true
+			return statusWriteMock
+		},
+	}
+	params := newReconcileImplParams(mockClient)
+
+	res, err := reconcileImpl(params)
+
+	if res != deleteRouteError {
+		t.Error("Result must be deleteRouteError")
+	}
+	if err == nil {
+		t.Error("Error must be not nil")
+	}
+	if !statusUpdateCalled {
+		t.Error("Status update called")
+	}
+}
+
+func TestReconcileImpl(t *testing.T) {
+	var statusUpdateCalled bool
+	routes := &iksv1.StaticRouteList{}
+	mockClient := reconcileImplClientMock{
+		client: newFakeClient(routes),
+		get: func(context.Context, client.ObjectKey, runtime.Object) error {
+			return kerrors.NewNotFound(schema.GroupResource{}, "name")
+		},
+		status: func() client.StatusWriter {
+			statusUpdateCalled = true
+			return nil
+		},
+	}
+	params := newReconcileImplParams(mockClient)
+
+	res, err := reconcileImpl(params)
+
+	if res != finished {
+		t.Error("Result must be finished")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+	if statusUpdateCalled {
+		t.Error("Status update called")
 	}
 }

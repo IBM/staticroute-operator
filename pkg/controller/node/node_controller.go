@@ -74,36 +74,66 @@ type ReconcileNode struct {
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
+	params := reconcileImplParams{
+		request: request,
+		client:  r.client,
+	}
+	result, err := reconcileImpl(params)
+	return *result, err
+}
+
+type reconcileImplClient interface {
+	Get(context.Context, client.ObjectKey, runtime.Object) error
+	Update(context.Context, runtime.Object, ...client.UpdateOption) error
+	List(context.Context, runtime.Object, ...client.ListOption) error
+	Status() client.StatusWriter
+}
+
+type reconcileImplParams struct {
+	request reconcile.Request
+	client  reconcileImplClient
+}
+
+var (
+	nodeStillExists = &reconcile.Result{}
+	finished        = &reconcile.Result{}
+
+	nodeGetError         = &reconcile.Result{}
+	staticRouteListError = &reconcile.Result{}
+	deleteRouteError     = &reconcile.Result{}
+)
+
+func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
+	reqLogger := log.WithValues("Request.Namespace", params.request.Namespace, "Request.Name", params.request.Name)
 
 	// Fetch the Node instance
 	node := &corev1.Node{}
-	if err := r.client.Get(context.Background(), request.NamespacedName, node); err == nil {
-		return reconcile.Result{}, nil
+	if err := params.client.Get(context.Background(), params.request.NamespacedName, node); err == nil {
+		return nodeStillExists, nil
 	} else if !errors.IsNotFound(err) {
 		// Error reading the object - requeue the request.
-		return reconcile.Result{}, err
+		return nodeGetError, err
 	}
 
 	routes := &iksv1.StaticRouteList{}
-	if err := r.client.List(context.Background(), routes); err != nil {
+	if err := params.client.List(context.Background(), routes); err != nil {
 		reqLogger.Error(err, "Unable to fetch CRD")
-		return reconcile.Result{}, err
+		return staticRouteListError, err
 	}
 
 	nf := nodeFinder{
-		nodeName: request.Name,
+		nodeName: params.request.Name,
 		updateCallback: func(route *iksv1.StaticRoute) error {
-			return r.client.Status().Update(context.Background(), route)
+			return params.client.Status().Update(context.Background(), route)
 		},
 		infoLogger: reqLogger.Info,
 	}
 	if err := nf.delete(routes); err != nil {
 		reqLogger.Error(err, "Unable to update CR")
-		return reconcile.Result{}, err
+		return deleteRouteError, err
 	}
 
-	return reconcile.Result{}, nil
+	return finished, nil
 }
 
 type nodeFinder struct {
