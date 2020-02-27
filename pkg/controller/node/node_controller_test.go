@@ -115,8 +115,11 @@ func TestReconcileImplNodeGetNodeFound(t *testing.T) {
 	}
 	params := newReconcileImplParams(mockClient)
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != nodeStillExists {
+		t.Error("Result must be nodeStillExists")
+	}
 	if err != nil {
 		t.Errorf("Error must be nil: %s", err.Error())
 	}
@@ -131,8 +134,11 @@ func TestReconcileImplNodeGetNodeFatalError(t *testing.T) {
 	}
 	params := newReconcileImplParams(mockClient)
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != nodeGetError {
+		t.Error("Result must be nodeGetError")
+	}
 	if err == nil {
 		t.Error("Error must be not nil")
 	}
@@ -148,8 +154,11 @@ func TestReconcileImplNodeCRListError(t *testing.T) {
 	}
 	params := newReconcileImplParams(mockClient)
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != staticRouteListError {
+		t.Error("Result must be staticRouteListError")
+	}
 	if err == nil {
 		t.Error("Error must be not nil")
 	}
@@ -190,8 +199,11 @@ func TestReconcileDeleteError(t *testing.T) {
 	}
 	params := newReconcileImplParams(mockClient)
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != deleteRouteError {
+		t.Error("Result must be deleteRouteError")
+	}
 	if err == nil {
 		t.Error("Error must be not nil")
 	}
@@ -215,8 +227,11 @@ func TestReconcileImpl(t *testing.T) {
 	}
 	params := newReconcileImplParams(mockClient)
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != finished {
+		t.Error("Result must be finished")
+	}
 	if err != nil {
 		t.Errorf("Error must be nil: %s", err.Error())
 	}

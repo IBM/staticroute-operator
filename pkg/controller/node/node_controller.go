@@ -78,7 +78,8 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 		request: request,
 		client:  r.client,
 	}
-	return reconcileImpl(params)
+	result, err := reconcileImpl(params)
+	return *result, err
 }
 
 type reconcileImplClient interface {
@@ -93,22 +94,31 @@ type reconcileImplParams struct {
 	client  reconcileImplClient
 }
 
-func reconcileImpl(params reconcileImplParams) (reconcile.Result, error) {
+var (
+	nodeStillExists = &reconcile.Result{}
+	finished        = &reconcile.Result{}
+
+	nodeGetError         = &reconcile.Result{}
+	staticRouteListError = &reconcile.Result{}
+	deleteRouteError     = &reconcile.Result{}
+)
+
+func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 	reqLogger := log.WithValues("Request.Namespace", params.request.Namespace, "Request.Name", params.request.Name)
 
 	// Fetch the Node instance
 	node := &corev1.Node{}
 	if err := params.client.Get(context.Background(), params.request.NamespacedName, node); err == nil {
-		return reconcile.Result{}, nil
+		return nodeStillExists, nil
 	} else if !errors.IsNotFound(err) {
 		// Error reading the object - requeue the request.
-		return reconcile.Result{}, err
+		return nodeGetError, err
 	}
 
 	routes := &iksv1.StaticRouteList{}
 	if err := params.client.List(context.Background(), routes); err != nil {
 		reqLogger.Error(err, "Unable to fetch CRD")
-		return reconcile.Result{}, err
+		return staticRouteListError, err
 	}
 
 	nf := nodeFinder{
@@ -120,10 +130,10 @@ func reconcileImpl(params reconcileImplParams) (reconcile.Result, error) {
 	}
 	if err := nf.delete(routes); err != nil {
 		reqLogger.Error(err, "Unable to update CR")
-		return reconcile.Result{}, err
+		return deleteRouteError, err
 	}
 
-	return reconcile.Result{}, nil
+	return finished, nil
 }
 
 type nodeFinder struct {
