@@ -68,7 +68,6 @@ func TestIsSameZone(t *testing.T) {
 			t.Errorf("Result must be %t, it is %t ad %d", td.result, res, i)
 		}
 	}
-
 }
 
 func TestIsChanged(t *testing.T) {
