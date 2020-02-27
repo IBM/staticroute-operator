@@ -94,7 +94,8 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 		client:  r.client,
 		options: r.options,
 	}
-	return reconcileImpl(params)
+	result, err := reconcileImpl(params)
+	return *result, err
 }
 
 type reconcileImplClient interface {
@@ -109,7 +110,24 @@ type reconcileImplParams struct {
 	options ManagerOptions
 }
 
-func reconcileImpl(params reconcileImplParams) (reconcile.Result, error) {
+var (
+	crNotFound       = &reconcile.Result{}
+	notSameZone      = &reconcile.Result{}
+	deletionFinished = &reconcile.Result{}
+	finished         = &reconcile.Result{}
+
+	crGetError           = &reconcile.Result{}
+	deRegisterError      = &reconcile.Result{}
+	delStatusUpdateError = &reconcile.Result{}
+	emptyFinalizerError  = &reconcile.Result{}
+	setFinalizerError    = &reconcile.Result{}
+	routeGetError        = &reconcile.Result{}
+	parseSubnetError     = &reconcile.Result{}
+	registerRouteError   = &reconcile.Result{}
+	addStatusUpdateError = &reconcile.Result{}
+)
+
+func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 	reqLogger := log.WithValues("Request.Name", params.request.Name)
 	reqLogger.Info("Reconciling StaticRoute")
 
@@ -121,10 +139,10 @@ func reconcileImpl(params reconcileImplParams) (reconcile.Result, error) {
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
 			reqLogger.Info("Object not found. Probably deleted meanwhile")
-			return reconcile.Result{}, nil
+			return crNotFound, nil
 		}
 		// Error reading the object - requeue the request.
-		return reconcile.Result{}, err
+		return crGetError, err
 	}
 
 	rw := routeWrapper{
@@ -134,7 +152,7 @@ func reconcileImpl(params reconcileImplParams) (reconcile.Result, error) {
 	if !rw.isSameZone(params.options.Zone, ZoneLabel) {
 		// a zone is specified and the route is not for this zone, ignore
 		reqLogger.Info("Ignoring, zone does not match", "NodeZone", params.options.Zone, "CRZone", instance.GetLabels()[ZoneLabel])
-		return reconcile.Result{}, nil
+		return notSameZone, nil
 	}
 	if instance.GetDeletionTimestamp() != nil && rw.removeFromStatus(params.options.Hostname) {
 		// Here comes the DELETE logic
@@ -142,14 +160,14 @@ func reconcileImpl(params reconcileImplParams) (reconcile.Result, error) {
 		err := params.options.RouteManager.DeRegisterRoute(params.request.Name)
 		if err != nil {
 			reqLogger.Error(err, "Unable to deregister route")
-			return reconcile.Result{}, err
+			return deRegisterError, err
 		}
 
 		reqLogger.Info("Deleted status for StaticRoute", "status", instance.Status)
 		err = params.client.Status().Update(context.Background(), instance)
 		if err != nil {
 			reqLogger.Error(err, "Unable to update status of CR")
-			return reconcile.Result{}, err
+			return delStatusUpdateError, err
 		}
 
 		// We were the last one
@@ -158,10 +176,10 @@ func reconcileImpl(params reconcileImplParams) (reconcile.Result, error) {
 			instance.SetFinalizers(nil)
 			if err := params.client.Update(context.Background(), instance); err != nil {
 				reqLogger.Error(err, "Unable to delete finalizers")
-				return reconcile.Result{}, err
+				return emptyFinalizerError, err
 			}
 		}
-		return reconcile.Result{}, nil
+		return deletionFinished, nil
 	}
 
 	if instance.GetDeletionTimestamp() == nil {
@@ -169,7 +187,7 @@ func reconcileImpl(params reconcileImplParams) (reconcile.Result, error) {
 		if rw.setFinalizer() {
 			if err := params.client.Update(context.Background(), rw.instance); err != nil {
 				reqLogger.Error(err, "Failed to update StaticRoute with finalizer")
-				return reconcile.Result{}, err
+				return setFinalizerError, err
 			}
 		}
 	}
@@ -180,7 +198,7 @@ func reconcileImpl(params reconcileImplParams) (reconcile.Result, error) {
 		defaultGateway, err := params.options.RouteGet()
 		if err != nil {
 			reqLogger.Error(err, "")
-			return reconcile.Result{}, err
+			return routeGetError, err
 		}
 		reqLogger.Info(fmt.Sprintf("* %+v", defaultGateway))
 		gateway = defaultGateway
@@ -195,14 +213,14 @@ func reconcileImpl(params reconcileImplParams) (reconcile.Result, error) {
 		_, ipnet, err := net.ParseCIDR(instance.Spec.Subnet)
 		if err != nil {
 			reqLogger.Error(err, "Unable to convert the subnet into IP range and mask")
-			return reconcile.Result{}, nil
+			return parseSubnetError, nil
 		}
 		reqLogger.Info("Registering route")
 
 		err = params.options.RouteManager.RegisterRoute(params.request.Name, routemanager.Route{Dst: *ipnet, Gw: gateway, Table: RouteTable})
 		if err != nil {
 			reqLogger.Error(err, "Unable to register route")
-			return reconcile.Result{}, err
+			return registerRouteError, err
 		}
 	}
 
@@ -211,14 +229,14 @@ func reconcileImpl(params reconcileImplParams) (reconcile.Result, error) {
 		reqLogger.Info("Update the StaticRoute status", "staticroute", instance.Status)
 		if err := params.client.Status().Update(context.Background(), instance); err != nil {
 			reqLogger.Error(err, "failed to update the staticroute")
-			return reconcile.Result{}, err
+			return addStatusUpdateError, err
 		}
 	}
 
 	// TODO: Here comes the MODIFY logic
 
 	reqLogger.Info("Reconciliation done, no add, no delete.")
-	return reconcile.Result{}, nil
+	return finished, nil
 }
 
 type routeWrapper struct {

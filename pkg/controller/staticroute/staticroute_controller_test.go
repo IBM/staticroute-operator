@@ -32,8 +32,11 @@ func TestReconcileImplCRGetFatalError(t *testing.T) {
 	//err "no kind is registered for the type v1."" because fake client doesn't have CRD
 	params := newReconcileImplParams(fake.NewFakeClient())
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != crGetError {
+		t.Error("Result must be notFound")
+	}
 	if err == nil {
 		t.Error("Error must be not nil")
 	}
@@ -44,8 +47,11 @@ func TestReconcileImplCRGetNotFound(t *testing.T) {
 
 	params := newReconcileImplParams(newFakeClient(route))
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != crNotFound {
+		t.Error("Result must be crNotFound")
+	}
 	if err != nil {
 		t.Errorf("Error must be nil: %s", err.Error())
 	}
@@ -58,8 +64,11 @@ func TestReconcileImplNotSameZone(t *testing.T) {
 	params := newReconcileImplParams(newFakeClient(route))
 	params.options.Zone = "a"
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != notSameZone {
+		t.Error("Result must be notSameZone")
+	}
 	if err != nil {
 		t.Errorf("Error must be nil: %s", err.Error())
 	}
@@ -84,8 +93,11 @@ func TestReconcileImplDeleted(t *testing.T) {
 	params.options.Hostname = "hostname"
 	params.options.RouteManager = routeManagerMock{}
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != deletionFinished {
+		t.Error("Result must be deletionFinished")
+	}
 	if err != nil {
 		t.Errorf("Error must be nil: %s", err.Error())
 	}
@@ -112,8 +124,11 @@ func TestReconcileImplDeletedButCantDeregister(t *testing.T) {
 		deRegisterRouteErr: errors.New("Couldn't deregister route"),
 	}
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != deRegisterError {
+		t.Error("Result must be deRegisterError")
+	}
 	if err == nil {
 		t.Error("Error must be not nil")
 	}
@@ -141,8 +156,11 @@ func TestReconcileImplDeletedButCantDeleteStatus(t *testing.T) {
 	params.options.Hostname = "hostname"
 	params.options.RouteManager = routeManagerMock{}
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != delStatusUpdateError {
+		t.Error("Result must be delStatusUpdateError")
+	}
 	if err == nil {
 		t.Error("Error must be not nil")
 	}
@@ -168,8 +186,11 @@ func TestReconcileImplDeletedButCantEmptyFinalizers(t *testing.T) {
 	params.options.Hostname = "hostname"
 	params.options.RouteManager = routeManagerMock{}
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != emptyFinalizerError {
+		t.Error("Result must be emptyFinalizerError")
+	}
 	if err == nil {
 		t.Error("Error must be not nil")
 	}
@@ -183,8 +204,11 @@ func TestReconcileImplIsNewButCantSetFinalizers(t *testing.T) {
 	}
 	params := newReconcileImplParams(mockClient)
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != setFinalizerError {
+		t.Error("Result must be setFinalizerError")
+	}
 	if err == nil {
 		t.Error("Error must be not nil")
 	}
@@ -197,8 +221,11 @@ func TestReconcileImplIsNotRegisteredButCantParseSubnet(t *testing.T) {
 	params := newReconcileImplParams(newFakeClient(route))
 	params.options.RouteManager = routeManagerMock{}
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != parseSubnetError {
+		t.Error("Result must be parseSubnetError")
+	}
 	if err != nil {
 		t.Errorf("Error must be nil: %s", err.Error())
 	}
@@ -213,8 +240,11 @@ func TestReconcileImplIsNotRegisteredButCantRegister(t *testing.T) {
 		registerRouteErr: errors.New("Couldn't register route"),
 	}
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != registerRouteError {
+		t.Error("Result must be registerRouteError")
+	}
 	if err == nil {
 		t.Error("Error must be not nil")
 	}
@@ -235,8 +265,11 @@ func TestReconcileImplIsRegisteredButCantAddStatus(t *testing.T) {
 		isRegistered: true,
 	}
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != addStatusUpdateError {
+		t.Error("Result must be addStatusUpdateError")
+	}
 	if err == nil {
 		t.Error("Error must be not nil")
 	}
@@ -249,8 +282,11 @@ func TestReconcileImplCantDetermineGateway(t *testing.T) {
 		return nil, errors.New("Can't determine gateway")
 	}
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != routeGetError {
+		t.Error("Result must be routeGetError")
+	}
 	if err == nil {
 		t.Error("Error must be not nil")
 	}
@@ -291,8 +327,11 @@ func TestReconcileImpl(t *testing.T) {
 		isRegistered: true,
 	}
 
-	_, err := reconcileImpl(params)
+	res, err := reconcileImpl(params)
 
+	if res != finished {
+		t.Error("Result must be finished")
+	}
 	if err != nil {
 		t.Errorf("Error must be nil: %s", err.Error())
 	}
