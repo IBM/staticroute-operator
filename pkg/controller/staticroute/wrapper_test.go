@@ -82,25 +82,26 @@ func TestIsSameZone(t *testing.T) {
 func TestIsChanged(t *testing.T) {
 	var testData = []struct {
 		hostname string
+		gateway  string
 		route    *iksv1.StaticRoute
 		result   bool
 	}{
 		{
 			"hostname",
+			"gateway",
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
-					Subnet:  "subnet",
-					Gateway: "gateway",
+					Subnet: "subnet",
 				},
 			},
 			false,
 		},
 		{
 			"hostname",
+			"gateway",
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
-					Subnet:  "subnet",
-					Gateway: "gateway",
+					Subnet: "subnet",
 				},
 				Status: iksv1.StaticRouteStatus{
 					NodeStatus: []iksv1.StaticRouteNodeStatus{
@@ -118,10 +119,10 @@ func TestIsChanged(t *testing.T) {
 		},
 		{
 			"hostname",
+			"gateway2",
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
-					Subnet:  "subnet",
-					Gateway: "gateway2",
+					Subnet: "subnet",
 				},
 				Status: iksv1.StaticRouteStatus{
 					NodeStatus: []iksv1.StaticRouteNodeStatus{
@@ -139,10 +140,10 @@ func TestIsChanged(t *testing.T) {
 		},
 		{
 			"hostname",
+			"gateway",
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
-					Subnet:  "subnet2",
-					Gateway: "gateway",
+					Subnet: "subnet2",
 				},
 				Status: iksv1.StaticRouteStatus{
 					NodeStatus: []iksv1.StaticRouteNodeStatus{
@@ -160,10 +161,10 @@ func TestIsChanged(t *testing.T) {
 		},
 		{
 			"hostname",
+			"gateway2",
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
-					Subnet:  "subnet2",
-					Gateway: "gateway2",
+					Subnet: "subnet2",
 				},
 				Status: iksv1.StaticRouteStatus{
 					NodeStatus: []iksv1.StaticRouteNodeStatus{
@@ -181,10 +182,10 @@ func TestIsChanged(t *testing.T) {
 		},
 		{
 			"hostname",
+			"gateway2",
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
-					Subnet:  "subnet2",
-					Gateway: "gateway2",
+					Subnet: "subnet2",
 				},
 				Status: iksv1.StaticRouteStatus{
 					NodeStatus: []iksv1.StaticRouteNodeStatus{
@@ -209,10 +210,10 @@ func TestIsChanged(t *testing.T) {
 		},
 		{
 			"hostname",
+			"gateway",
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
-					Subnet:  "subnet",
-					Gateway: "gateway",
+					Subnet: "subnet",
 				},
 				Status: iksv1.StaticRouteStatus{
 					NodeStatus: []iksv1.StaticRouteNodeStatus{
@@ -240,7 +241,7 @@ func TestIsChanged(t *testing.T) {
 	for i, td := range testData {
 		rw := routeWrapper{instance: td.route}
 
-		res := rw.isChanged(td.hostname)
+		res := rw.isChanged(td.hostname, td.gateway)
 
 		if res != td.result {
 			t.Errorf("Result must be %t, it is %t ad %d", td.result, res, i)
@@ -249,9 +250,33 @@ func TestIsChanged(t *testing.T) {
 
 }
 
+func TestRouteWrapperSetFinalizer(t *testing.T) {
+	route := newStaticRouteWithValues(true)
+	rw := routeWrapper{instance: route}
+
+	done := rw.setFinalizer()
+
+	if !done || len(route.GetFinalizers()) == 0 {
+		t.Error("Finalizer must be added")
+	} else if route.GetFinalizers()[0] != "finalizer.iks.ibm.com" {
+		t.Errorf("`finalizer.iks.ibm.com` not setted as finalizer: %v", route.GetFinalizers())
+	}
+}
+
+func TestRouteWrapperSetFinalizerNotEmpty(t *testing.T) {
+	route := newStaticRouteWithValues(true)
+	route.SetFinalizers([]string{"finalizer"})
+	rw := routeWrapper{instance: route}
+
+	done := rw.setFinalizer()
+
+	if done {
+		t.Error("Finalizer must be not added")
+	}
+}
+
 func TestRouteWrapperGetGateway(t *testing.T) {
-	route := newStaticRouteWithValues()
-	route.Spec.Gateway = "10.0.0.1"
+	route := newStaticRouteWithValues(true)
 	rw := routeWrapper{instance: route}
 
 	gw := rw.getGateway()
@@ -261,8 +286,32 @@ func TestRouteWrapperGetGateway(t *testing.T) {
 	}
 }
 
+func TestRouteWrapperGetGatewayMissing(t *testing.T) {
+	route := newStaticRouteWithValues(false)
+
+	rw := routeWrapper{instance: route}
+
+	gw := rw.getGateway()
+
+	if gw != nil {
+		t.Errorf("Gateway must be nil: %s", gw.String())
+	}
+}
+
+func TestRouteWrapperGetGatewayInvalid(t *testing.T) {
+	route := newStaticRouteWithValues(false)
+	route.Spec.Gateway = "invalid-gateway"
+	rw := routeWrapper{instance: route}
+
+	gw := rw.getGateway()
+
+	if gw != nil {
+		t.Errorf("Gateway must be nil: %s", gw.String())
+	}
+}
+
 func TestRouteWrapperAddToStatus(t *testing.T) {
-	route := newStaticRouteWithValues()
+	route := newStaticRouteWithValues(false)
 	rw := routeWrapper{instance: route}
 
 	added := rw.addToStatus("hostname", net.IP{10, 0, 0, 1})
@@ -279,7 +328,7 @@ func TestRouteWrapperAddToStatus(t *testing.T) {
 }
 
 func TestRouteWrapperAddToStatusNotAdded(t *testing.T) {
-	route := newStaticRouteWithValues()
+	route := newStaticRouteWithValues(false)
 	route.Status = iksv1.StaticRouteStatus{
 		NodeStatus: []iksv1.StaticRouteNodeStatus{
 			iksv1.StaticRouteNodeStatus{
@@ -297,7 +346,7 @@ func TestRouteWrapperAddToStatusNotAdded(t *testing.T) {
 }
 
 func TestRouteWrapperRemoveFromStatusNotRemoved(t *testing.T) {
-	route := newStaticRouteWithValues()
+	route := newStaticRouteWithValues(false)
 	route.Status = iksv1.StaticRouteStatus{
 		NodeStatus: []iksv1.StaticRouteNodeStatus{
 			iksv1.StaticRouteNodeStatus{
@@ -315,7 +364,7 @@ func TestRouteWrapperRemoveFromStatusNotRemoved(t *testing.T) {
 }
 
 func TestRouteWrapperRemoveFromStatusRemoved(t *testing.T) {
-	route := newStaticRouteWithValues()
+	route := newStaticRouteWithValues(false)
 	route.Status = iksv1.StaticRouteStatus{
 		NodeStatus: []iksv1.StaticRouteNodeStatus{
 			iksv1.StaticRouteNodeStatus{

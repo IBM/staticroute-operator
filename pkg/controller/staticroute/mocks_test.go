@@ -125,11 +125,17 @@ func newReconcileImplParams(client reconcileImplClient) reconcileImplParams {
 	}
 }
 
-func newStaticRouteWithValues() *iksv1.StaticRoute {
-	return &iksv1.StaticRoute{
+func newStaticRouteWithValues(withSpec bool) *iksv1.StaticRoute {
+	route := iksv1.StaticRoute{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "CR",
 			Namespace: "default",
 		},
 	}
+	if withSpec {
+		route.Spec = iksv1.StaticRouteSpec{
+			Gateway: "10.0.0.1",
+		}
+	}
+	return &route
 }
