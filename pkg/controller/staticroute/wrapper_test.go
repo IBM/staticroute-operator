@@ -40,6 +40,15 @@ func TestIsSameZone(t *testing.T) {
 			true,
 		},
 		{
+			"a",
+			&iksv1.StaticRoute{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{ZoneLabel: ""},
+				},
+			},
+			true,
+		},
+		{
 			"",
 			&iksv1.StaticRoute{
 				ObjectMeta: metav1.ObjectMeta{

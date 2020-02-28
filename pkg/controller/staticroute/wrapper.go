@@ -38,7 +38,7 @@ func (rw *routeWrapper) setFinalizer() bool {
 func (rw *routeWrapper) isSameZone(zone, label string) bool {
 	instanceZone := rw.instance.GetLabels()[label]
 
-	return instanceZone == zone
+	return instanceZone == "" || instanceZone == zone
 }
 
 func (rw *routeWrapper) isChanged(hostname string) bool {
