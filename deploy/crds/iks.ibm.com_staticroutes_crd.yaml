@@ -34,10 +34,12 @@ spec:
             gateway:
               description: Gateway the gateway the subnet is routed through (optional,
                 discovered if not set)
+              pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}$
               type: string
             subnet:
               description: 'Subnet defines the required IP subnet in the form of:
                 "x.x.x.x/x"'
+              pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$
               type: string
           required:
           - subnet
@@ -64,10 +66,12 @@ spec:
                       gateway:
                         description: Gateway the gateway the subnet is routed through
                           (optional, discovered if not set)
+                        pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}$
                         type: string
                       subnet:
                         description: 'Subnet defines the required IP subnet in the
                           form of: "x.x.x.x/x"'
+                        pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$
                         type: string
                     required:
                     - subnet
