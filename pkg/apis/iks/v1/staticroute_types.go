@@ -31,9 +31,11 @@ type StaticRouteSpec struct {
 	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
 
 	// Subnet defines the required IP subnet in the form of: "x.x.x.x/x"
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$`
 	Subnet string `json:"subnet"`
 
 	// Gateway the gateway the subnet is routed through (optional, discovered if not set)
+	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}$`
 	Gateway string `json:"gateway,omitempty"`
 }
 
