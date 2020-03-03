@@ -80,15 +80,19 @@ func TestIsSameZone(t *testing.T) {
 }
 
 func TestIsChanged(t *testing.T) {
+	tableZero := 0
+	tableOne := 1
 	var testData = []struct {
 		hostname string
 		gateway  string
+		table    int
 		route    *iksv1.StaticRoute
 		result   bool
 	}{
 		{
 			"hostname",
 			"gateway",
+			0,
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
 					Subnet: "subnet",
@@ -99,6 +103,7 @@ func TestIsChanged(t *testing.T) {
 		{
 			"hostname",
 			"gateway",
+			0,
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
 					Subnet: "subnet",
@@ -119,7 +124,54 @@ func TestIsChanged(t *testing.T) {
 		},
 		{
 			"hostname",
+			"gateway",
+			0,
+			&iksv1.StaticRoute{
+				Spec: iksv1.StaticRouteSpec{
+					Subnet: "subnet",
+				},
+				Status: iksv1.StaticRouteStatus{
+					NodeStatus: []iksv1.StaticRouteNodeStatus{
+						iksv1.StaticRouteNodeStatus{
+							Hostname: "hostname",
+							State: iksv1.StaticRouteSpec{
+								Subnet:  "subnet",
+								Gateway: "gateway",
+								Table:   &tableZero,
+							},
+						},
+					},
+				},
+			},
+			false,
+		},
+		{
+			"hostname",
+			"gateway",
+			0,
+			&iksv1.StaticRoute{
+				Spec: iksv1.StaticRouteSpec{
+					Subnet: "subnet",
+				},
+				Status: iksv1.StaticRouteStatus{
+					NodeStatus: []iksv1.StaticRouteNodeStatus{
+						iksv1.StaticRouteNodeStatus{
+							Hostname: "hostname",
+							State: iksv1.StaticRouteSpec{
+								Subnet:  "subnet",
+								Gateway: "gateway",
+								Table:   &tableOne,
+							},
+						},
+					},
+				},
+			},
+			true,
+		},
+		{
+			"hostname",
 			"gateway2",
+			0,
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
 					Subnet: "subnet",
@@ -141,6 +193,7 @@ func TestIsChanged(t *testing.T) {
 		{
 			"hostname",
 			"gateway",
+			0,
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
 					Subnet: "subnet2",
@@ -162,6 +215,7 @@ func TestIsChanged(t *testing.T) {
 		{
 			"hostname",
 			"gateway2",
+			0,
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
 					Subnet: "subnet2",
@@ -183,6 +237,7 @@ func TestIsChanged(t *testing.T) {
 		{
 			"hostname",
 			"gateway2",
+			0,
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
 					Subnet: "subnet2",
@@ -211,6 +266,7 @@ func TestIsChanged(t *testing.T) {
 		{
 			"hostname",
 			"gateway",
+			0,
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
 					Subnet: "subnet",
@@ -241,7 +297,7 @@ func TestIsChanged(t *testing.T) {
 	for i, td := range testData {
 		rw := routeWrapper{instance: td.route}
 
-		res := rw.isChanged(td.hostname, td.gateway)
+		res := rw.isChanged(td.hostname, td.gateway, td.table)
 
 		if res != td.result {
 			t.Errorf("Result must be %t, it is %t ad %d", td.result, res, i)
@@ -314,7 +370,7 @@ func TestRouteWrapperAddToStatus(t *testing.T) {
 	route := newStaticRouteWithValues(false)
 	rw := routeWrapper{instance: route}
 
-	added := rw.addToStatus("hostname", net.IP{10, 0, 0, 1})
+	added := rw.addToStatus("hostname", net.IP{10, 0, 0, 1}, 0)
 
 	if !added {
 		t.Error("Status must be added")
@@ -338,7 +394,7 @@ func TestRouteWrapperAddToStatusNotAdded(t *testing.T) {
 	}
 	rw := routeWrapper{instance: route}
 
-	added := rw.addToStatus("hostname", net.IP{10, 0, 0, 1})
+	added := rw.addToStatus("hostname", net.IP{10, 0, 0, 1}, 0)
 
 	if added {
 		t.Error("Status must be not added")

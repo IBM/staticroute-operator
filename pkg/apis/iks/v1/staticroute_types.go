@@ -37,6 +37,11 @@ type StaticRouteSpec struct {
 	// Gateway the gateway the subnet is routed through (optional, discovered if not set)
 	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}$`
 	Gateway string `json:"gateway,omitempty"`
+
+	// Table target routing table to store routing policy (optional, 254 targeted if not set)
+	// +kubebuilder:validation:Maximum=254
+	// +kubebuilder:validation:Minimum=0
+	Table *int `json:"table,omitempty"`
 }
 
 // StaticRouteNodeStatus defines the observed state of one IKS node, related to the StaticRoute

@@ -39,8 +39,8 @@ import (
 var (
 	//ZoneLabel Kubernetes node label to determine node zone
 	ZoneLabel = "failure-domain.beta.kubernetes.io/zone"
-	//RouteTable Route table number for static routes
-	RouteTable = 254
+	//DefaultRouteTable Route table number for static routes
+	DefaultRouteTable = 254
 )
 
 var log = logf.Log.WithName("controller_staticroute")
@@ -164,7 +164,13 @@ func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 		return res, err
 	}
 
-	isChanged := rw.isChanged(params.options.Hostname, gateway.String())
+	table := DefaultRouteTable
+	if rw.instance.Spec.Table != nil {
+		table = *rw.instance.Spec.Table
+	}
+	reqLogger.Info("Table selected", "table", table)
+
+	isChanged := rw.isChanged(params.options.Hostname, gateway.String(), table)
 	reqLogger.Info("The resource is", "changed", isChanged)
 	if instance.GetDeletionTimestamp() != nil || isChanged {
 		if !rw.removeFromStatus(params.options.Hostname) {
@@ -178,7 +184,7 @@ func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 		return res, err
 	}
 
-	return addOperation(params, &rw, gateway, reqLogger)
+	return addOperation(params, &rw, gateway, table, reqLogger)
 }
 
 func selectGateway(params reconcileImplParams, rw routeWrapper, logger types.Logger) (*reconcile.Result, net.IP, error) {
@@ -227,7 +233,7 @@ func deleteOperation(params reconcileImplParams, rw *routeWrapper, logger types.
 	return deletionFinished, nil
 }
 
-func addOperation(params reconcileImplParams, rw *routeWrapper, gateway net.IP, logger types.Logger) (*reconcile.Result, error) {
+func addOperation(params reconcileImplParams, rw *routeWrapper, gateway net.IP, table int, logger types.Logger) (*reconcile.Result, error) {
 	if rw.setFinalizer() {
 		logger.Info("Adding Finalizer for the StaticRoute")
 		if err := params.client.Update(context.Background(), rw.instance); err != nil {
@@ -249,7 +255,7 @@ func addOperation(params reconcileImplParams, rw *routeWrapper, gateway net.IP, 
 		}
 		logger.Info("Registering route")
 
-		err = params.options.RouteManager.RegisterRoute(params.request.Name, routemanager.Route{Dst: *ipnet, Gw: gateway, Table: RouteTable})
+		err = params.options.RouteManager.RegisterRoute(params.request.Name, routemanager.Route{Dst: *ipnet, Gw: gateway, Table: table})
 		if err != nil {
 			logger.Error(err, "Unable to register route")
 			return registerRouteError, err
@@ -257,7 +263,7 @@ func addOperation(params reconcileImplParams, rw *routeWrapper, gateway net.IP, 
 	}
 
 	// Delay status update until this point, so it will not be executed if CR delete is ongoing
-	if rw.addToStatus(params.options.Hostname, gateway) {
+	if rw.addToStatus(params.options.Hostname, gateway, table) {
 		logger.Info("Update the StaticRoute status", "staticroute", rw.instance.Status)
 		if err := params.client.Status().Update(context.Background(), rw.instance); err != nil {
 			logger.Error(err, "failed to update the staticroute")

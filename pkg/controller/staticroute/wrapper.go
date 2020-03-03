@@ -41,13 +41,15 @@ func (rw *routeWrapper) isSameZone(zone, label string) bool {
 	return instanceZone == "" || instanceZone == zone
 }
 
-func (rw *routeWrapper) isChanged(hostname, gateway string) bool {
+func (rw *routeWrapper) isChanged(hostname, gateway string, table int) bool {
 	for _, s := range rw.instance.Status.NodeStatus {
 		if s.Hostname != hostname {
 			continue
-		} else if s.State.Subnet != rw.instance.Spec.Subnet || s.State.Gateway != gateway {
-			return true
 		}
+
+		return s.State.Subnet != rw.instance.Spec.Subnet ||
+			s.State.Gateway != gateway ||
+			s.State.Table != nil && *s.State.Table != table
 	}
 	return false
 }
@@ -61,7 +63,7 @@ func (rw *routeWrapper) getGateway() net.IP {
 	return net.ParseIP(gateway)
 }
 
-func (rw *routeWrapper) addToStatus(hostname string, gateway net.IP) bool {
+func (rw *routeWrapper) addToStatus(hostname string, gateway net.IP, table int) bool {
 	// Update the status if necessary
 	for _, val := range rw.instance.Status.NodeStatus {
 		if val.Hostname == hostname {
@@ -71,6 +73,7 @@ func (rw *routeWrapper) addToStatus(hostname string, gateway net.IP) bool {
 
 	spec := rw.instance.Spec
 	spec.Gateway = gateway.String()
+	spec.Table = &table
 	rw.instance.Status.NodeStatus = append(rw.instance.Status.NodeStatus, iksv1.StaticRouteNodeStatus{
 		Hostname: hostname,
 		State:    spec,
