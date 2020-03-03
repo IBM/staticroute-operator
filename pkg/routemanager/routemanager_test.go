@@ -360,7 +360,7 @@ func TestDeRegisterRouteWhichIsNotRegistered(t *testing.T) {
 	testable := newTestableRouteManager()
 	testable.start()
 	err := testable.rm.DeRegisterRoute(gTestRouteName)
-	if err.Error() != "Route could not found" {
+	if err != ErrNotFound {
 		t.Error("Deregistration shall fail due to asking for a non-managed route")
 	}
 	testable.stop()

@@ -25,6 +25,11 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+var (
+	//NotFoundError route not found error
+	ErrNotFound = errors.New("Route could not found")
+)
+
 type routeManagerImpl struct {
 	managedRoutes         map[string]Route
 	watchers              []RouteWatcher
@@ -99,7 +104,7 @@ func (r *routeManagerImpl) DeRegisterRoute(name string) error {
 func (r *routeManagerImpl) deRegisterRoute(params routeManagerImplDeRegisterRouteParams) {
 	item, found := r.managedRoutes[params.name]
 	if !found {
-		params.err <- errors.New("Route could not found")
+		params.err <- ErrNotFound
 		return
 	}
 	nlRoute := item.toNetLinkRoute()

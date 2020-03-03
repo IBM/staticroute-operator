@@ -58,7 +58,7 @@ func TestReconcileImplCRGetNotFound(t *testing.T) {
 }
 
 func TestReconcileImplNotSameZone(t *testing.T) {
-	route := newStaticRouteWithValues()
+	route := newStaticRouteWithValues(true)
 	route.ObjectMeta.Labels = map[string]string{ZoneLabel: "b"}
 
 	params := newReconcileImplParams(newFakeClient(route))
@@ -75,7 +75,7 @@ func TestReconcileImplNotSameZone(t *testing.T) {
 }
 
 func TestReconcileImplNotDeleted(t *testing.T) {
-	route := newStaticRouteWithValues()
+	route := newStaticRouteWithValues(true)
 	route.Status = iksv1.StaticRouteStatus{
 		NodeStatus: []iksv1.StaticRouteNodeStatus{
 			iksv1.StaticRouteNodeStatus{
@@ -103,12 +103,46 @@ func TestReconcileImplNotDeleted(t *testing.T) {
 	}
 }
 
-func TestReconcileImplDeleted(t *testing.T) {
-	route := newStaticRouteWithValues()
+func TestReconcileImplUpdated(t *testing.T) {
+	route := newStaticRouteWithValues(false)
+	route.Spec = iksv1.StaticRouteSpec{
+		Subnet:  "11.1.1.1/16",
+		Gateway: "10.0.0.1",
+	}
 	route.Status = iksv1.StaticRouteStatus{
 		NodeStatus: []iksv1.StaticRouteNodeStatus{
 			iksv1.StaticRouteNodeStatus{
 				Hostname: "hostname",
+				State: iksv1.StaticRouteSpec{
+					Subnet:  "10.0.0.0/16",
+					Gateway: "10.0.0.1",
+				},
+			},
+		},
+	}
+	params := newReconcileImplParams(newFakeClient(route))
+	params.options.Hostname = "hostname"
+	params.options.RouteManager = routeManagerMock{}
+
+	res, err := reconcileImpl(params)
+
+	if res != updateFinished {
+		t.Error("Result must be updateFinished")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+}
+
+func TestReconcileImplDeleted(t *testing.T) {
+	route := newStaticRouteWithValues(true)
+	route.Status = iksv1.StaticRouteStatus{
+		NodeStatus: []iksv1.StaticRouteNodeStatus{
+			iksv1.StaticRouteNodeStatus{
+				Hostname: "hostname",
+				State: iksv1.StaticRouteSpec{
+					Gateway: "10.0.0.1",
+				},
 			},
 		},
 	}
@@ -132,31 +166,34 @@ func TestReconcileImplDeleted(t *testing.T) {
 	}
 }
 
-func TestReconcileImplUpdated(t *testing.T) {
-	route := newStaticRouteWithValues()
-	route.Spec = iksv1.StaticRouteSpec{
-		Subnet:  "subnet2",
-		Gateway: "gateway",
-	}
+func TestReconcileImplDeletedIfRouteNotFound(t *testing.T) {
+	route := newStaticRouteWithValues(true)
 	route.Status = iksv1.StaticRouteStatus{
 		NodeStatus: []iksv1.StaticRouteNodeStatus{
 			iksv1.StaticRouteNodeStatus{
 				Hostname: "hostname",
 				State: iksv1.StaticRouteSpec{
-					Subnet:  "subnet",
-					Gateway: "gateway",
+					Gateway: "10.0.0.1",
 				},
 			},
 		},
 	}
-	params := newReconcileImplParams(newFakeClient(route))
+	mockClient := reconcileImplClientMock{
+		client: newFakeClient(route),
+		postfixGet: func(obj runtime.Object) {
+			obj.(*iksv1.StaticRoute).SetDeletionTimestamp(&v1.Time{})
+		},
+	}
+	params := newReconcileImplParams(mockClient)
 	params.options.Hostname = "hostname"
-	params.options.RouteManager = routeManagerMock{}
+	params.options.RouteManager = routeManagerMock{
+		deRegisterRouteErr: routemanager.ErrNotFound,
+	}
 
 	res, err := reconcileImpl(params)
 
-	if res != updateFinished {
-		t.Error("Result must be updateFinished")
+	if res != deletionFinished {
+		t.Error("Result must be deletionFinished")
 	}
 	if err != nil {
 		t.Errorf("Error must be nil: %s", err.Error())
@@ -164,11 +201,14 @@ func TestReconcileImplUpdated(t *testing.T) {
 }
 
 func TestReconcileImplDeletedButCantDeregister(t *testing.T) {
-	route := newStaticRouteWithValues()
+	route := newStaticRouteWithValues(true)
 	route.Status = iksv1.StaticRouteStatus{
 		NodeStatus: []iksv1.StaticRouteNodeStatus{
 			iksv1.StaticRouteNodeStatus{
 				Hostname: "hostname",
+				State: iksv1.StaticRouteSpec{
+					Gateway: "10.0.0.1",
+				},
 			},
 		},
 	}
@@ -195,11 +235,14 @@ func TestReconcileImplDeletedButCantDeregister(t *testing.T) {
 }
 
 func TestReconcileImplDeletedButCantDeleteStatus(t *testing.T) {
-	route := newStaticRouteWithValues()
+	route := newStaticRouteWithValues(true)
 	route.Status = iksv1.StaticRouteStatus{
 		NodeStatus: []iksv1.StaticRouteNodeStatus{
 			iksv1.StaticRouteNodeStatus{
 				Hostname: "hostname",
+				State: iksv1.StaticRouteSpec{
+					Gateway: "10.0.0.1",
+				},
 			},
 		},
 	}
@@ -227,11 +270,14 @@ func TestReconcileImplDeletedButCantDeleteStatus(t *testing.T) {
 }
 
 func TestReconcileImplDeletedButCantEmptyFinalizers(t *testing.T) {
-	route := newStaticRouteWithValues()
+	route := newStaticRouteWithValues(true)
 	route.Status = iksv1.StaticRouteStatus{
 		NodeStatus: []iksv1.StaticRouteNodeStatus{
 			iksv1.StaticRouteNodeStatus{
 				Hostname: "hostname",
+				State: iksv1.StaticRouteSpec{
+					Gateway: "10.0.0.1",
+				},
 			},
 		},
 	}
@@ -257,7 +303,7 @@ func TestReconcileImplDeletedButCantEmptyFinalizers(t *testing.T) {
 }
 
 func TestReconcileImplIsNewButCantSetFinalizers(t *testing.T) {
-	route := newStaticRouteWithValues()
+	route := newStaticRouteWithValues(true)
 	mockClient := reconcileImplClientMock{
 		client:    newFakeClient(route),
 		updateErr: errors.New("Couldn't fill finalizers"),
@@ -275,8 +321,7 @@ func TestReconcileImplIsNewButCantSetFinalizers(t *testing.T) {
 }
 
 func TestReconcileImplIsNotRegisteredButCantParseSubnet(t *testing.T) {
-	route := newStaticRouteWithValues()
-	route.Spec.Gateway = "10.0.0.1"
+	route := newStaticRouteWithValues(true)
 	route.Spec.Subnet = "invalid-subnet"
 	params := newReconcileImplParams(newFakeClient(route))
 	params.options.RouteManager = routeManagerMock{}
@@ -292,8 +337,7 @@ func TestReconcileImplIsNotRegisteredButCantParseSubnet(t *testing.T) {
 }
 
 func TestReconcileImplIsNotRegisteredButCantRegister(t *testing.T) {
-	route := newStaticRouteWithValues()
-	route.Spec.Gateway = "10.0.0.1"
+	route := newStaticRouteWithValues(true)
 	route.Spec.Subnet = "10.0.0.1/16"
 	params := newReconcileImplParams(newFakeClient(route))
 	params.options.RouteManager = routeManagerMock{
@@ -311,8 +355,7 @@ func TestReconcileImplIsNotRegisteredButCantRegister(t *testing.T) {
 }
 
 func TestReconcileImplIsRegisteredButCantAddStatus(t *testing.T) {
-	route := newStaticRouteWithValues()
-	route.Spec.Gateway = "10.0.0.1"
+	route := newStaticRouteWithValues(true)
 	mockClient := reconcileImplClientMock{
 		client: newFakeClient(route),
 		statusWriteMock: statusWriterMock{
@@ -335,8 +378,23 @@ func TestReconcileImplIsRegisteredButCantAddStatus(t *testing.T) {
 	}
 }
 
+func TestReconcileImplInvalidGateway(t *testing.T) {
+	route := newStaticRouteWithValues(false)
+	route.Spec.Gateway = "invalid-gateway"
+	params := newReconcileImplParams(newFakeClient(route))
+
+	res, err := reconcileImpl(params)
+
+	if res != invalidGatewayError {
+		t.Error("Result must be invalidGatewayError")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+}
+
 func TestReconcileImplCantDetermineGateway(t *testing.T) {
-	route := newStaticRouteWithValues()
+	route := newStaticRouteWithValues(false)
 	params := newReconcileImplParams(newFakeClient(route))
 	params.options.RouteGet = func() (net.IP, error) {
 		return nil, errors.New("Can't determine gateway")
@@ -355,7 +413,7 @@ func TestReconcileImplCantDetermineGateway(t *testing.T) {
 func TestReconcileImplDetermineGateway(t *testing.T) {
 	var gatewayParam string
 
-	route := newStaticRouteWithValues()
+	route := newStaticRouteWithValues(false)
 	route.Spec.Subnet = "10.0.0.1/16"
 	params := newReconcileImplParams(newFakeClient(route))
 	params.options.RouteGet = func() (net.IP, error) {
@@ -379,7 +437,7 @@ func TestReconcileImplDetermineGateway(t *testing.T) {
 }
 
 func TestReconcileImpl(t *testing.T) {
-	route := newStaticRouteWithValues()
+	route := newStaticRouteWithValues(true)
 	route.Spec.Gateway = "10.0.0.1"
 	params := newReconcileImplParams(newFakeClient(route))
 	params.options.Hostname = "hostname"
@@ -394,77 +452,5 @@ func TestReconcileImpl(t *testing.T) {
 	}
 	if err != nil {
 		t.Errorf("Error must be nil: %s", err.Error())
-	}
-}
-
-func TestRouteWrapperSetFinalizer(t *testing.T) {
-	route := newStaticRouteWithValues()
-	rw := routeWrapper{instance: route}
-
-	done := rw.setFinalizer()
-
-	if !done || len(route.GetFinalizers()) == 0 {
-		t.Error("Finalizer must be added")
-	} else if route.GetFinalizers()[0] != "finalizer.iks.ibm.com" {
-		t.Errorf("`finalizer.iks.ibm.com` not setted as finalizer: %v", route.GetFinalizers())
-	}
-}
-
-func TestRouteWrapperSetFinalizerNotEmpty(t *testing.T) {
-	route := newStaticRouteWithValues()
-	route.SetFinalizers([]string{"finalizer"})
-	rw := routeWrapper{instance: route}
-
-	done := rw.setFinalizer()
-
-	if done {
-		t.Error("Finalizer must be not added")
-	}
-}
-
-func TestRouteWrapperSameZone(t *testing.T) {
-	route := newStaticRouteWithValues()
-	route.Labels = map[string]string{ZoneLabel: "a"}
-	rw := routeWrapper{instance: route}
-
-	same := rw.isSameZone("a", ZoneLabel)
-
-	if !same {
-		t.Error("Must be in same zone")
-	}
-}
-
-func TestRouteWrapperNotSameZone(t *testing.T) {
-	route := newStaticRouteWithValues()
-	route.Labels = map[string]string{ZoneLabel: "a"}
-	rw := routeWrapper{instance: route}
-
-	same := rw.isSameZone("b", ZoneLabel)
-
-	if same {
-		t.Error("Must not be in same zone")
-	}
-}
-
-func TestRouteWrapperGetGatewayMissing(t *testing.T) {
-	route := newStaticRouteWithValues()
-	rw := routeWrapper{instance: route}
-
-	gw := rw.getGateway()
-
-	if gw != nil {
-		t.Errorf("Gateway must be nil: %s", gw.String())
-	}
-}
-
-func TestRouteWrapperGetGatewayInvalid(t *testing.T) {
-	route := newStaticRouteWithValues()
-	route.Spec.Gateway = "invalid-gateway"
-	rw := routeWrapper{instance: route}
-
-	gw := rw.getGateway()
-
-	if gw != nil {
-		t.Errorf("Gateway must be nil: %s", gw.String())
 	}
 }

@@ -41,11 +41,11 @@ func (rw *routeWrapper) isSameZone(zone, label string) bool {
 	return instanceZone == "" || instanceZone == zone
 }
 
-func (rw *routeWrapper) isChanged(hostname string) bool {
+func (rw *routeWrapper) isChanged(hostname, gateway string) bool {
 	for _, s := range rw.instance.Status.NodeStatus {
 		if s.Hostname != hostname {
 			continue
-		} else if s.State.Subnet != rw.instance.Spec.Subnet || s.State.Gateway != rw.instance.Spec.Gateway {
+		} else if s.State.Subnet != rw.instance.Spec.Subnet || s.State.Gateway != gateway {
 			return true
 		}
 	}

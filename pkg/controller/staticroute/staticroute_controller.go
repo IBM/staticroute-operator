@@ -18,13 +18,14 @@ package staticroute
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 
 	iksv1 "github.com/IBM/staticroute-operator/pkg/apis/iks/v1"
 	"github.com/IBM/staticroute-operator/pkg/routemanager"
 	"github.com/IBM/staticroute-operator/pkg/types"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -124,6 +125,7 @@ var (
 	delStatusUpdateError = &reconcile.Result{}
 	emptyFinalizerError  = &reconcile.Result{}
 	setFinalizerError    = &reconcile.Result{}
+	invalidGatewayError  = &reconcile.Result{}
 	routeGetError        = &reconcile.Result{}
 	parseSubnetError     = &reconcile.Result{}
 	registerRouteError   = &reconcile.Result{}
@@ -137,7 +139,7 @@ func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 	// Fetch the StaticRoute instance
 	instance := &iksv1.StaticRoute{}
 	if err := params.client.Get(context.Background(), params.request.NamespacedName, instance); err != nil {
-		if errors.IsNotFound(err) {
+		if kerrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
@@ -156,7 +158,14 @@ func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 		return notSameZone, nil
 	}
 
-	isChanged := rw.isChanged(params.options.Hostname)
+	// If "gateway" is empty, we'll create the route through the default private network gateway
+	res, gateway, err := selectGateway(params, rw, reqLogger)
+	if gateway == nil {
+		return res, err
+	}
+
+	isChanged := rw.isChanged(params.options.Hostname, gateway.String())
+	reqLogger.Info("The resource is", "changed", isChanged)
 	if instance.GetDeletionTimestamp() != nil || isChanged {
 		if !rw.removeFromStatus(params.options.Hostname) {
 			return alreadyDeleted, nil
@@ -169,14 +178,32 @@ func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 		return res, err
 	}
 
-	return addOperation(params, &rw, reqLogger)
+	return addOperation(params, &rw, gateway, reqLogger)
+}
+
+func selectGateway(params reconcileImplParams, rw routeWrapper, logger types.Logger) (*reconcile.Result, net.IP, error) {
+	gateway := rw.getGateway()
+	if gateway == nil && len(rw.instance.Spec.Gateway) != 0 {
+		logger.Error(errors.New("Invalid gateway found in Spec"), rw.instance.Spec.Gateway)
+		return invalidGatewayError, nil, nil
+	}
+	if gateway == nil {
+		defaultGateway, err := params.options.RouteGet()
+		if err != nil {
+			logger.Error(err, "")
+			return routeGetError, nil, err
+		}
+		logger.Info(fmt.Sprintf("* %+v", defaultGateway))
+		gateway = defaultGateway
+	}
+	return nil, gateway, nil
 }
 
 func deleteOperation(params reconcileImplParams, rw *routeWrapper, logger types.Logger) (*reconcile.Result, error) {
 	// Here comes the DELETE logic
 	logger.Info("Deregistering route")
 	err := params.options.RouteManager.DeRegisterRoute(params.request.Name)
-	if err != nil {
+	if err != nil && err != routemanager.ErrNotFound {
 		logger.Error(err, "Unable to deregister route")
 		return deRegisterError, err
 	}
@@ -200,25 +227,13 @@ func deleteOperation(params reconcileImplParams, rw *routeWrapper, logger types.
 	return deletionFinished, nil
 }
 
-func addOperation(params reconcileImplParams, rw *routeWrapper, logger types.Logger) (*reconcile.Result, error) {
+func addOperation(params reconcileImplParams, rw *routeWrapper, gateway net.IP, logger types.Logger) (*reconcile.Result, error) {
 	if rw.setFinalizer() {
 		logger.Info("Adding Finalizer for the StaticRoute")
 		if err := params.client.Update(context.Background(), rw.instance); err != nil {
 			logger.Error(err, "Failed to update StaticRoute with finalizer")
 			return setFinalizerError, err
 		}
-	}
-
-	// If "gateway" is empty, we'll create the route through the default private network gateway
-	gateway := rw.getGateway()
-	if gateway == nil {
-		defaultGateway, err := params.options.RouteGet()
-		if err != nil {
-			logger.Error(err, "")
-			return routeGetError, err
-		}
-		logger.Info(fmt.Sprintf("* %+v", defaultGateway))
-		gateway = defaultGateway
 	}
 
 	if !params.options.RouteManager.IsRegistered(params.request.Name) {
