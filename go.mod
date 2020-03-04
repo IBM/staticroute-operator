@@ -6,8 +6,8 @@ require (
 	github.com/coreos/prometheus-operator v0.29.0
 	github.com/go-openapi/spec v0.19.0
 	github.com/google/go-cmp v0.4.0 // indirect
+	github.com/googleapis/gnostic v0.3.1
 	github.com/operator-framework/operator-sdk v0.12.0
-	github.com/pkg/errors v0.8.1
 	github.com/spf13/pflag v1.0.3
 	github.com/vishvananda/netlink v0.0.0-20171020171820-b2de5d10e38e
 	golang.org/x/net v0.0.0-20200202094626-16171245cfb2 // indirect
