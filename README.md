@@ -15,6 +15,9 @@ The following components are needed to be installed on your environment:
     - export `KUBECONFIG` environment variable to the path of kubeconfig file (if not set, default $$HOME/.kube/config will be used)
     - login to your docker registry using your credentials (ie.: docker login... , ibmcloud cr login etc.)
 
+# Customizations
+ * Routing table: By default static route controller uses #254 table to configure static routes. The table number is configurable by giving a valid number between 0 and 254 as `TARGET_TABLE` environment variable. Changing the target table on a running operator is not supported. You have to properly terminate all the existing static routes by deleting the custom resources before restarting the operator with the new config.
+
 # Updating the Custom Resource Definitions (CRDs)
 Make sure, that every time you modify anything in `*_types.go` file, run the `make update-operator-resource` to update generated code for `k8s` and `CRDs`.
 
