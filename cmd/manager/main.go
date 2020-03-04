@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"strconv"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	"k8s.io/client-go/kubernetes"
@@ -56,9 +57,11 @@ import (
 
 // Change below variables to serve metrics on different host or port.
 var (
-	metricsHost               = "0.0.0.0"
-	metricsPort         int32 = 8383
-	operatorMetricsPort int32 = 8686
+	metricsHost                   = "0.0.0.0"
+	metricsPort             int32 = 8383
+	operatorMetricsPort     int32 = 8686
+	defaultMetricsNamespace       = "default"
+	defaultRouteTable             = 254
 )
 var log = logf.Log.WithName("cmd")
 
@@ -70,6 +73,13 @@ func printVersion() {
 }
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Error(fmt.Errorf("%v", r), "")
+			os.Exit(1)
+		}
+	}()
+
 	// Add the zap logger flag set to the CLI. The flag set must
 	// be added before calling pflag.Parse().
 	pflag.CommandLine.AddFlagSet(zap.FlagSet())
@@ -94,15 +104,14 @@ func main() {
 
 	metricsNamespace, found := os.LookupEnv("METRICS_NS")
 	if !found {
-		metricsNamespace = "default"
-		log.Info("METRICS_NS not defined. Using 'default'")
+		metricsNamespace = defaultMetricsNamespace
+		log.Info("METRICS_NS not defined.", "using", defaultMetricsNamespace)
 	}
 
 	// Get a config to talk to the apiserver
 	cfg, err := config.GetConfig()
 	if err != nil {
-		log.Error(err, "")
-		os.Exit(1)
+		panic(err)
 	}
 
 	// Create a new Cmd to provide shared dependencies and start components
@@ -112,16 +121,14 @@ func main() {
 		MetricsBindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort),
 	})
 	if err != nil {
-		log.Error(err, "")
-		os.Exit(1)
+		panic(err)
 	}
 
 	log.Info("Registering Components.")
 
 	// Setup Scheme for all resources
 	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
-		log.Error(err, "")
-		os.Exit(1)
+		panic(err)
 	}
 
 	if err = serveCRMetrics(cfg); err != nil {
@@ -154,7 +161,7 @@ func main() {
 
 	hostname := os.Getenv("NODE_HOSTNAME")
 	if hostname == "" {
-		panic(fmt.Errorf("Missing environment variable: NODE_HOSTNAME"))
+		panic("Missing environment variable: NODE_HOSTNAME")
 	}
 
 	// get the zone using the API, first get the matching Node
@@ -170,8 +177,7 @@ func main() {
 	}, u)
 
 	if err != nil {
-		log.Error(err, "")
-		os.Exit(1)
+		panic(err)
 	}
 
 	labels := u.GetLabels()
@@ -183,15 +189,26 @@ func main() {
 
 	clientset, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
-		log.Error(err, "")
-		os.Exit(1)
+		panic(err)
 	}
 
 	resources, err := clientset.Discovery().ServerResourcesForGroupVersion("iks.ibm.com/v1")
 	if err != nil {
-		log.Error(err, "")
-		os.Exit(1)
+		panic(err)
 	}
+
+	table := defaultRouteTable
+	targetTableEnv := os.Getenv("TARGET_TABLE")
+	if len(targetTableEnv) != 0 {
+		if customTable, err := strconv.Atoi(targetTableEnv); err != nil {
+			panic(fmt.Sprintf("Unable to parse custom table 'TARGET_TABLE=%s' %s", targetTableEnv, err.Error()))
+		} else if customTable < 0 || customTable > 254 {
+			panic(fmt.Sprintf("Target table must be between 0 and 254 'TARGET_TABLE=%s'", targetTableEnv))
+		} else {
+			table = customTable
+		}
+	}
+	log.Info("Table selected", "value", table)
 
 	crdFound := false
 	for _, resource := range resources.APIResources {
@@ -203,14 +220,14 @@ func main() {
 		routeManager := routemanager.New()
 		stopChan := make(chan struct{})
 		go func() {
-			err := routeManager.Run(stopChan)
-			log.Error(err, "")
+			panic(routeManager.Run(stopChan))
 		}()
 
 		// Start static route controller
 		if err := staticroute.Add(mgr, staticroute.ManagerOptions{
 			Hostname:     hostname,
 			Zone:         zone,
+			Table:        table,
 			RouteManager: routeManager,
 			RouteGet: func() (net.IP, error) {
 				route, err := netlink.RouteGet(net.IP{10, 0, 0, 1})
@@ -220,29 +237,26 @@ func main() {
 				return route[0].Gw, nil
 			},
 		}); err != nil {
-			log.Error(err, "")
-			os.Exit(1)
+			panic(err)
 		}
 		crdFound = true
 		break
 	}
 	if !crdFound {
 		log.Info("CRD not found: staticroutes.iks.ibm.com")
-		os.Exit(1)
+		panic(err)
 	}
 
 	// Start node controller
 	if err := node.Add(mgr); err != nil {
-		log.Error(err, "")
-		os.Exit(1)
+		panic(err)
 	}
 
 	log.Info("Starting the Cmd.")
-
 	// Start the Cmd
 	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
 		log.Error(err, "Manager exited non-zero")
-		os.Exit(1)
+		panic(err)
 	}
 }
 
