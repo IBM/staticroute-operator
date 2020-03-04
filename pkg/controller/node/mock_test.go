@@ -29,11 +29,10 @@ import (
 )
 
 type reconcileImplClientMock struct {
-	client          reconcileImplClient
-	statusWriteMock client.StatusWriter
-	get             func(context.Context, client.ObjectKey, runtime.Object) error
-	list            func(context.Context, runtime.Object, ...client.ListOption) error
-	status          func() client.StatusWriter
+	client reconcileImplClient
+	get    func(context.Context, client.ObjectKey, runtime.Object) error
+	list   func(context.Context, runtime.Object, ...client.ListOption) error
+	status func() client.StatusWriter
 }
 
 func (m reconcileImplClientMock) Get(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
@@ -74,8 +73,8 @@ func (m statusWriterMock) Patch(context.Context, runtime.Object, client.Patch, .
 	return m.patchErr
 }
 
-func newReconcileImplParams(client reconcileImplClient) reconcileImplParams {
-	return reconcileImplParams{
+func newReconcileImplParams(client reconcileImplClient) *reconcileImplParams {
+	return &reconcileImplParams{
 		request: reconcile.Request{
 			NamespacedName: types.NamespacedName{
 				Name:      "CR",
