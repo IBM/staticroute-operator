@@ -112,8 +112,8 @@ func newFakeClient(route *iksv1.StaticRoute) client.Client {
 	return fake.NewFakeClientWithScheme(s, []runtime.Object{route}...)
 }
 
-func newReconcileImplParams(client reconcileImplClient) reconcileImplParams {
-	return reconcileImplParams{
+func newReconcileImplParams(client reconcileImplClient) *reconcileImplParams {
+	return &reconcileImplParams{
 		request: reconcile.Request{
 			NamespacedName: types.NamespacedName{
 				Name:      "CR",
@@ -125,16 +125,31 @@ func newReconcileImplParams(client reconcileImplClient) reconcileImplParams {
 	}
 }
 
-func newStaticRouteWithValues(withSpec bool) *iksv1.StaticRoute {
+func newStaticRouteWithValues(withSpec, withStatus bool) *iksv1.StaticRoute {
 	route := iksv1.StaticRoute{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "CR",
 			Namespace: "default",
+			Labels:    map[string]string{ZoneLabel: "zone"},
 		},
 	}
 	if withSpec {
 		route.Spec = iksv1.StaticRouteSpec{
 			Gateway: "10.0.0.1",
+			Subnet:  "10.0.0.1/16",
+		}
+	}
+	if withStatus {
+		route.Status = iksv1.StaticRouteStatus{
+			NodeStatus: []iksv1.StaticRouteNodeStatus{
+				iksv1.StaticRouteNodeStatus{
+					Hostname: "hostname",
+					State: iksv1.StaticRouteSpec{
+						Subnet:  "10.0.0.1/16",
+						Gateway: "10.0.0.1",
+					},
+				},
+			},
 		}
 	}
 	return &route
