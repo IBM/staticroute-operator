@@ -251,7 +251,7 @@ func TestIsChanged(t *testing.T) {
 }
 
 func TestRouteWrapperSetFinalizer(t *testing.T) {
-	route := newStaticRouteWithValues(true)
+	route := newStaticRouteWithValues(true, false)
 	rw := routeWrapper{instance: route}
 
 	done := rw.setFinalizer()
@@ -264,7 +264,7 @@ func TestRouteWrapperSetFinalizer(t *testing.T) {
 }
 
 func TestRouteWrapperSetFinalizerNotEmpty(t *testing.T) {
-	route := newStaticRouteWithValues(true)
+	route := newStaticRouteWithValues(true, false)
 	route.SetFinalizers([]string{"finalizer"})
 	rw := routeWrapper{instance: route}
 
@@ -276,7 +276,7 @@ func TestRouteWrapperSetFinalizerNotEmpty(t *testing.T) {
 }
 
 func TestRouteWrapperGetGateway(t *testing.T) {
-	route := newStaticRouteWithValues(true)
+	route := newStaticRouteWithValues(true, false)
 	rw := routeWrapper{instance: route}
 
 	gw := rw.getGateway()
@@ -287,7 +287,7 @@ func TestRouteWrapperGetGateway(t *testing.T) {
 }
 
 func TestRouteWrapperGetGatewayMissing(t *testing.T) {
-	route := newStaticRouteWithValues(false)
+	route := newStaticRouteWithValues(false, false)
 
 	rw := routeWrapper{instance: route}
 
@@ -299,7 +299,7 @@ func TestRouteWrapperGetGatewayMissing(t *testing.T) {
 }
 
 func TestRouteWrapperGetGatewayInvalid(t *testing.T) {
-	route := newStaticRouteWithValues(false)
+	route := newStaticRouteWithValues(false, false)
 	route.Spec.Gateway = "invalid-gateway"
 	rw := routeWrapper{instance: route}
 
@@ -311,7 +311,7 @@ func TestRouteWrapperGetGatewayInvalid(t *testing.T) {
 }
 
 func TestRouteWrapperAddToStatus(t *testing.T) {
-	route := newStaticRouteWithValues(false)
+	route := newStaticRouteWithValues(false, false)
 	rw := routeWrapper{instance: route}
 
 	added := rw.addToStatus("hostname", net.IP{10, 0, 0, 1})
@@ -328,7 +328,7 @@ func TestRouteWrapperAddToStatus(t *testing.T) {
 }
 
 func TestRouteWrapperAddToStatusNotAdded(t *testing.T) {
-	route := newStaticRouteWithValues(false)
+	route := newStaticRouteWithValues(false, false)
 	route.Status = iksv1.StaticRouteStatus{
 		NodeStatus: []iksv1.StaticRouteNodeStatus{
 			iksv1.StaticRouteNodeStatus{
@@ -346,7 +346,7 @@ func TestRouteWrapperAddToStatusNotAdded(t *testing.T) {
 }
 
 func TestRouteWrapperRemoveFromStatusNotRemoved(t *testing.T) {
-	route := newStaticRouteWithValues(false)
+	route := newStaticRouteWithValues(false, false)
 	route.Status = iksv1.StaticRouteStatus{
 		NodeStatus: []iksv1.StaticRouteNodeStatus{
 			iksv1.StaticRouteNodeStatus{
@@ -364,7 +364,7 @@ func TestRouteWrapperRemoveFromStatusNotRemoved(t *testing.T) {
 }
 
 func TestRouteWrapperRemoveFromStatusRemoved(t *testing.T) {
-	route := newStaticRouteWithValues(false)
+	route := newStaticRouteWithValues(false, false)
 	route.Status = iksv1.StaticRouteStatus{
 		NodeStatus: []iksv1.StaticRouteNodeStatus{
 			iksv1.StaticRouteNodeStatus{
