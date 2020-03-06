@@ -63,13 +63,33 @@ func TestDefaultRouteTable(t *testing.T) {
 
 func TestMainImpl(t *testing.T) {
 	defer catchError(t)()
+	params, callbacks := getContextForHappyFlow()
 
-	mainImpl(*getContextForHappyFlow())
+	mainImpl(*params)
+
+	expected := mockCallbacks{
+		getConfigCalled:                true,
+		newManagerCalled:               true,
+		addToSchemeCalled:              true,
+		serveCRMetricsCalled:           true,
+		createMetricsServiceCalled:     true,
+		createServiceMonitorsCalled:    true,
+		newKubernetesConfigCalled:      true,
+		newRouterManagerCalled:         true,
+		addStaticRouteControllerCalled: true,
+		addNodeControllerCalled:        true,
+		routerGetCalled:                true,
+		setupSignalHandlerCalled:       true,
+	}
+
+	if expected != *callbacks {
+		t.Errorf("Not the right dependencies were called: expected: %v actial: %v", expected, callbacks)
+	}
 }
 
 func TestMainImplServeCRMetricsFails(t *testing.T) {
 	defer catchError(t)()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.serveCRMetrics = func(*rest.Config) error {
 		return errors.New("fatal-error")
 	}
@@ -79,7 +99,7 @@ func TestMainImplServeCRMetricsFails(t *testing.T) {
 
 func TestMainImplCreateMetricsServiceFails(t *testing.T) {
 	defer catchError(t)()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.createMetricsService = func(context.Context, *rest.Config, []v1.ServicePort) (*v1.Service, error) {
 		return nil, errors.New("fatal-error")
 	}
@@ -89,7 +109,7 @@ func TestMainImplCreateMetricsServiceFails(t *testing.T) {
 
 func TestMainImplCreateServiceMonitorsFails(t *testing.T) {
 	defer catchError(t)()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.createServiceMonitors = func(*rest.Config, string, []*v1.Service, ...metrics.ServiceMonitorUpdater) ([]*monitoringv1.ServiceMonitor, error) {
 		return nil, errors.New("fatal-error")
 	}
@@ -99,7 +119,7 @@ func TestMainImplCreateServiceMonitorsFails(t *testing.T) {
 
 func TestMainImplCreateServiceMonitorsFailsNotPreset(t *testing.T) {
 	defer catchError(t)()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.createServiceMonitors = func(*rest.Config, string, []*v1.Service, ...metrics.ServiceMonitorUpdater) ([]*monitoringv1.ServiceMonitor, error) {
 		return nil, metrics.ErrServiceMonitorNotPresent
 	}
@@ -108,7 +128,7 @@ func TestMainImplCreateServiceMonitorsFailsNotPreset(t *testing.T) {
 }
 func TestMainImplTargetTableMore(t *testing.T) {
 	defer catchError(t)()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.getEnv = getEnvMock("", "hostname", "42")
 
 	mainImpl(*params)
@@ -117,7 +137,7 @@ func TestMainImplTargetTableMore(t *testing.T) {
 func TestMainImplGetConfigFails(t *testing.T) {
 	err := errors.New("fatal-error")
 	defer validateRecovery(t, err)()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.getConfig = func() (*rest.Config, error) {
 		return nil, err
 	}
@@ -130,7 +150,7 @@ func TestMainImplGetConfigFails(t *testing.T) {
 func TestMainImplNewManagerFails(t *testing.T) {
 	err := errors.New("fatal-error")
 	defer validateRecovery(t, err)()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.newManager = func(*rest.Config, manager.Options) (manager.Manager, error) {
 		return mockManager{}, err
 	}
@@ -143,7 +163,7 @@ func TestMainImplNewManagerFails(t *testing.T) {
 func TestMainImplAddToSchemeFails(t *testing.T) {
 	err := errors.New("fatal-error")
 	defer validateRecovery(t, err)()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.addToScheme = func(s *runtime.Scheme) error {
 		return err
 	}
@@ -155,7 +175,7 @@ func TestMainImplAddToSchemeFails(t *testing.T) {
 
 func TestMainImplHostnameMissing(t *testing.T) {
 	defer validateRecovery(t, "Missing environment variable: NODE_HOSTNAME")()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.getEnv = getEnvMock("", "", "")
 
 	mainImpl(*params)
@@ -176,7 +196,7 @@ func TestMainImplNodeGetFails(t *testing.T) {
 			}
 		}
 	}()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.newManager = func(*rest.Config, manager.Options) (manager.Manager, error) {
 		return mockManager{client: fake.NewFakeClient()}, nil
 	}
@@ -188,7 +208,7 @@ func TestMainImplNodeGetFails(t *testing.T) {
 
 func TestMainImplTargetTableInvalid(t *testing.T) {
 	defer validateRecovery(t, "Unable to parse custom table 'TARGET_TABLE=invalid-table' strconv.Atoi: parsing \"invalid-table\": invalid syntax")()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.getEnv = getEnvMock("", "hostname", "invalid-table")
 
 	mainImpl(*params)
@@ -198,7 +218,7 @@ func TestMainImplTargetTableInvalid(t *testing.T) {
 
 func TestMainImplTargetTableLessThan(t *testing.T) {
 	defer validateRecovery(t, "Target table must be between 0 and 254 'TARGET_TABLE=-1'")()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.getEnv = getEnvMock("", "hostname", "-1")
 
 	mainImpl(*params)
@@ -208,7 +228,7 @@ func TestMainImplTargetTableLessThan(t *testing.T) {
 
 func TestMainImplTargetTableMoreThan(t *testing.T) {
 	defer validateRecovery(t, "Target table must be between 0 and 254 'TARGET_TABLE=255'")()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.getEnv = getEnvMock("", "hostname", "255")
 
 	mainImpl(*params)
@@ -219,7 +239,7 @@ func TestMainImplTargetTableMoreThan(t *testing.T) {
 func TestMainImplNewKubernetesConfigFails(t *testing.T) {
 	err := errors.New("fatal-error")
 	defer validateRecovery(t, err)()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.newKubernetesConfig = func(c *rest.Config) (discoverable, error) {
 		return mockDiscoverable{}, err
 	}
@@ -232,7 +252,7 @@ func TestMainImplNewKubernetesConfigFails(t *testing.T) {
 func TestMainImplServerResourcesForGroupVersionFails(t *testing.T) {
 	err := errors.New("fatal-error")
 	defer validateRecovery(t, err)()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.newKubernetesConfig = func(c *rest.Config) (discoverable, error) {
 		return mockDiscoverable{serverResourcesForGroupVersionErr: err}, nil
 	}
@@ -245,7 +265,7 @@ func TestMainImplServerResourcesForGroupVersionFails(t *testing.T) {
 func TestMainImplCrdNorFound(t *testing.T) {
 	err := errors.New("fatal-error")
 	defer validateRecovery(t, err)()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.newKubernetesConfig = func(c *rest.Config) (discoverable, error) {
 		return mockDiscoverable{apiResourceList: &metav1.APIResourceList{}}, nil
 	}
@@ -258,7 +278,7 @@ func TestMainImplCrdNorFound(t *testing.T) {
 func TestMainImplAddStaticRouteControllerFails(t *testing.T) {
 	err := errors.New("fatal-error")
 	defer validateRecovery(t, err)()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.addStaticRouteController = func(manager.Manager, staticroute.ManagerOptions) error {
 		return err
 	}
@@ -271,7 +291,7 @@ func TestMainImplAddStaticRouteControllerFails(t *testing.T) {
 func TestMainImplAddNodeControllerFails(t *testing.T) {
 	err := errors.New("fatal-error")
 	defer validateRecovery(t, err)()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.addNodeController = func(manager.Manager) error {
 		return err
 	}
@@ -284,7 +304,7 @@ func TestMainImplAddNodeControllerFails(t *testing.T) {
 func TestMainImplManagerStartFails(t *testing.T) {
 	err := errors.New("fatal-error")
 	defer validateRecovery(t, err)()
-	params := getContextForHappyFlow()
+	params, _ := getContextForHappyFlow()
 	params.newManager = func(*rest.Config, manager.Options) (manager.Manager, error) {
 		return mockManager{startErr: err}, nil
 	}
@@ -294,47 +314,62 @@ func TestMainImplManagerStartFails(t *testing.T) {
 	t.Error("Error didn't appear")
 }
 
-func getContextForHappyFlow() *mainImplParams {
+func getContextForHappyFlow() (*mainImplParams, *mockCallbacks) {
+	callbacks := mockCallbacks{}
 	return &mainImplParams{
 		logger: mockLogger{},
 		getEnv: getEnvMock("", "hostname", ""),
 		getConfig: func() (*rest.Config, error) {
+			callbacks.getConfigCalled = true
 			return nil, nil
 		},
 		newManager: func(*rest.Config, manager.Options) (manager.Manager, error) {
+			callbacks.newManagerCalled = true
 			return mockManager{}, nil
 		},
 		addToScheme: func(s *runtime.Scheme) error {
+			callbacks.addToSchemeCalled = true
 			return nil
 		},
 		serveCRMetrics: func(*rest.Config) error {
+			callbacks.serveCRMetricsCalled = true
 			return nil
 		},
 		createMetricsService: func(context.Context, *rest.Config, []v1.ServicePort) (*v1.Service, error) {
+			callbacks.createMetricsServiceCalled = true
 			return nil, nil
 		},
 		createServiceMonitors: func(*rest.Config, string, []*v1.Service, ...metrics.ServiceMonitorUpdater) ([]*monitoringv1.ServiceMonitor, error) {
+			callbacks.createServiceMonitorsCalled = true
 			return nil, nil
 		},
 		newKubernetesConfig: func(c *rest.Config) (discoverable, error) {
+			callbacks.newKubernetesConfigCalled = true
 			return mockDiscoverable{}, nil
 		},
 		newRouterManager: func() routemanager.RouteManager {
+			callbacks.newRouterManagerCalled = true
 			return mockRouteManager{}
 		},
-		addStaticRouteController: func(manager.Manager, staticroute.ManagerOptions) error {
+		addStaticRouteController: func(mgr manager.Manager, options staticroute.ManagerOptions) error {
+			//nolint:errcheck
+			options.RouteGet()
+			callbacks.addStaticRouteControllerCalled = true
 			return nil
 		},
 		addNodeController: func(manager.Manager) error {
+			callbacks.addNodeControllerCalled = true
 			return nil
 		},
 		routerGet: func() (net.IP, error) {
+			callbacks.routerGetCalled = true
 			return net.IP{10, 0, 0, 1}, nil
 		},
 		setupSignalHandler: func() (stopCh <-chan struct{}) {
+			callbacks.setupSignalHandlerCalled = true
 			return make(chan struct{})
 		},
-	}
+	}, &callbacks
 }
 
 func catchError(t *testing.T) func() {
