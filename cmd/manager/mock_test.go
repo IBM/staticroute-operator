@@ -74,7 +74,10 @@ func (l mockLogger) Info(string, ...interface{}) {}
 
 func (l mockLogger) Error(error, string, ...interface{}) {}
 
-type mockManager struct{}
+type mockManager struct {
+	client   client.Client
+	startErr error
+}
 
 func (m mockManager) Add(manager.Runnable) error {
 	return nil
@@ -85,7 +88,7 @@ func (m mockManager) SetFields(interface{}) error {
 }
 
 func (m mockManager) Start(<-chan struct{}) error {
-	return nil
+	return m.startErr
 }
 
 func (m mockManager) GetConfig() *rest.Config {
@@ -97,6 +100,9 @@ func (m mockManager) GetScheme() *runtime.Scheme {
 }
 
 func (m mockManager) GetClient() client.Client {
+	if m.client != nil {
+		return m.client
+	}
 	return newFakeClient()
 }
 
@@ -151,13 +157,30 @@ func (m mockRouteManager) Run(stopChan chan struct{}) error {
 	return nil
 }
 
-type mockDiscoverable struct{}
-
-func (m mockDiscoverable) Discovery() discovery.DiscoveryInterface {
-	return mockDiscovery{}
+type mockDiscoverable struct {
+	apiResourceList                   *metav1.APIResourceList
+	serverResourcesForGroupVersionErr error
 }
 
-type mockDiscovery struct{}
+func (m mockDiscoverable) Discovery() discovery.DiscoveryInterface {
+	resources := m.apiResourceList
+	if resources == nil {
+		resources = &metav1.APIResourceList{
+			APIResources: []metav1.APIResource{metav1.APIResource{
+				Kind: "StaticRoute",
+			}},
+		}
+	}
+	return mockDiscovery{
+		apiResourceList:                   resources,
+		serverResourcesForGroupVersionErr: m.serverResourcesForGroupVersionErr,
+	}
+}
+
+type mockDiscovery struct {
+	apiResourceList                   *metav1.APIResourceList
+	serverResourcesForGroupVersionErr error
+}
 
 func (m mockDiscovery) OpenAPISchema() (*openapi_v2.Document, error) {
 	return nil, nil
@@ -172,11 +195,7 @@ func (m mockDiscovery) ServerGroups() (*metav1.APIGroupList, error) {
 }
 
 func (m mockDiscovery) ServerResourcesForGroupVersion(groupVersion string) (*metav1.APIResourceList, error) {
-	return &metav1.APIResourceList{
-		APIResources: []metav1.APIResource{metav1.APIResource{
-			Kind: "StaticRoute",
-		}},
-	}, nil
+	return m.apiResourceList, m.serverResourcesForGroupVersionErr
 }
 
 func (m mockDiscovery) ServerResources() ([]*metav1.APIResourceList, error) {
