@@ -74,6 +74,21 @@ func (l mockLogger) Info(string, ...interface{}) {}
 
 func (l mockLogger) Error(error, string, ...interface{}) {}
 
+type mockCallbacks struct {
+	getConfigCalled                bool
+	newManagerCalled               bool
+	addToSchemeCalled              bool
+	serveCRMetricsCalled           bool
+	createMetricsServiceCalled     bool
+	createServiceMonitorsCalled    bool
+	newKubernetesConfigCalled      bool
+	newRouterManagerCalled         bool
+	addStaticRouteControllerCalled bool
+	addNodeControllerCalled        bool
+	routerGetCalled                bool
+	setupSignalHandlerCalled       bool
+}
+
 type mockManager struct {
 	client   client.Client
 	startErr error
