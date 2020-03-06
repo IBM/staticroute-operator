@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net"
 	"regexp"
 	"runtime/debug"
@@ -28,8 +29,10 @@ import (
 	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/operator-framework/operator-sdk/pkg/metrics"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
@@ -59,14 +62,236 @@ func TestDefaultRouteTable(t *testing.T) {
 }
 
 func TestMainImpl(t *testing.T) {
-	defer func() {
-		if r := recover(); r != nil {
-			t.Errorf("Fatal error: %v", r)
-			debug.PrintStack()
-		}
-	}()
+	defer catchError(t)()
 
 	mainImpl(*getContextForHappyFlow())
+}
+
+func TestMainImplServeCRMetricsFails(t *testing.T) {
+	defer catchError(t)()
+	params := getContextForHappyFlow()
+	params.serveCRMetrics = func(*rest.Config) error {
+		return errors.New("fatal-error")
+	}
+
+	mainImpl(*params)
+}
+
+func TestMainImplCreateMetricsServiceFails(t *testing.T) {
+	defer catchError(t)()
+	params := getContextForHappyFlow()
+	params.createMetricsService = func(context.Context, *rest.Config, []v1.ServicePort) (*v1.Service, error) {
+		return nil, errors.New("fatal-error")
+	}
+
+	mainImpl(*params)
+}
+
+func TestMainImplCreateServiceMonitorsFails(t *testing.T) {
+	defer catchError(t)()
+	params := getContextForHappyFlow()
+	params.createServiceMonitors = func(*rest.Config, string, []*v1.Service, ...metrics.ServiceMonitorUpdater) ([]*monitoringv1.ServiceMonitor, error) {
+		return nil, errors.New("fatal-error")
+	}
+
+	mainImpl(*params)
+}
+
+func TestMainImplCreateServiceMonitorsFailsNotPreset(t *testing.T) {
+	defer catchError(t)()
+	params := getContextForHappyFlow()
+	params.createServiceMonitors = func(*rest.Config, string, []*v1.Service, ...metrics.ServiceMonitorUpdater) ([]*monitoringv1.ServiceMonitor, error) {
+		return nil, metrics.ErrServiceMonitorNotPresent
+	}
+
+	mainImpl(*params)
+}
+func TestMainImplTargetTableMore(t *testing.T) {
+	defer catchError(t)()
+	params := getContextForHappyFlow()
+	params.getEnv = getEnvMock("", "hostname", "42")
+
+	mainImpl(*params)
+}
+
+func TestMainImplGetConfigFails(t *testing.T) {
+	err := errors.New("fatal-error")
+	defer validateRecovery(t, err)()
+	params := getContextForHappyFlow()
+	params.getConfig = func() (*rest.Config, error) {
+		return nil, err
+	}
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplNewManagerFails(t *testing.T) {
+	err := errors.New("fatal-error")
+	defer validateRecovery(t, err)()
+	params := getContextForHappyFlow()
+	params.newManager = func(*rest.Config, manager.Options) (manager.Manager, error) {
+		return mockManager{}, err
+	}
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplAddToSchemeFails(t *testing.T) {
+	err := errors.New("fatal-error")
+	defer validateRecovery(t, err)()
+	params := getContextForHappyFlow()
+	params.addToScheme = func(s *runtime.Scheme) error {
+		return err
+	}
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplHostnameMissing(t *testing.T) {
+	defer validateRecovery(t, "Missing environment variable: NODE_HOSTNAME")()
+	params := getContextForHappyFlow()
+	params.getEnv = getEnvMock("", "", "")
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplNodeGetFails(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch rt := r.(type) {
+			case error:
+				if rt.Error() != "nodes \"hostname\" not found" {
+					t.Errorf("Error not match, current %v", rt)
+				}
+			default:
+				t.Errorf("Wrong error did appear: %v", r)
+			}
+		}
+	}()
+	params := getContextForHappyFlow()
+	params.newManager = func(*rest.Config, manager.Options) (manager.Manager, error) {
+		return mockManager{client: fake.NewFakeClient()}, nil
+	}
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplTargetTableInvalid(t *testing.T) {
+	defer validateRecovery(t, "Unable to parse custom table 'TARGET_TABLE=invalid-table' strconv.Atoi: parsing \"invalid-table\": invalid syntax")()
+	params := getContextForHappyFlow()
+	params.getEnv = getEnvMock("", "hostname", "invalid-table")
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplTargetTableLessThan(t *testing.T) {
+	defer validateRecovery(t, "Target table must be between 0 and 254 'TARGET_TABLE=-1'")()
+	params := getContextForHappyFlow()
+	params.getEnv = getEnvMock("", "hostname", "-1")
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplTargetTableMoreThan(t *testing.T) {
+	defer validateRecovery(t, "Target table must be between 0 and 254 'TARGET_TABLE=255'")()
+	params := getContextForHappyFlow()
+	params.getEnv = getEnvMock("", "hostname", "255")
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplNewKubernetesConfigFails(t *testing.T) {
+	err := errors.New("fatal-error")
+	defer validateRecovery(t, err)()
+	params := getContextForHappyFlow()
+	params.newKubernetesConfig = func(c *rest.Config) (discoverable, error) {
+		return mockDiscoverable{}, err
+	}
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplServerResourcesForGroupVersionFails(t *testing.T) {
+	err := errors.New("fatal-error")
+	defer validateRecovery(t, err)()
+	params := getContextForHappyFlow()
+	params.newKubernetesConfig = func(c *rest.Config) (discoverable, error) {
+		return mockDiscoverable{serverResourcesForGroupVersionErr: err}, nil
+	}
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplCrdNorFound(t *testing.T) {
+	err := errors.New("fatal-error")
+	defer validateRecovery(t, err)()
+	params := getContextForHappyFlow()
+	params.newKubernetesConfig = func(c *rest.Config) (discoverable, error) {
+		return mockDiscoverable{apiResourceList: &metav1.APIResourceList{}}, nil
+	}
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplAddStaticRouteControllerFails(t *testing.T) {
+	err := errors.New("fatal-error")
+	defer validateRecovery(t, err)()
+	params := getContextForHappyFlow()
+	params.addStaticRouteController = func(manager.Manager, staticroute.ManagerOptions) error {
+		return err
+	}
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplAddNodeControllerFails(t *testing.T) {
+	err := errors.New("fatal-error")
+	defer validateRecovery(t, err)()
+	params := getContextForHappyFlow()
+	params.addNodeController = func(manager.Manager) error {
+		return err
+	}
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplManagerStartFails(t *testing.T) {
+	err := errors.New("fatal-error")
+	defer validateRecovery(t, err)()
+	params := getContextForHappyFlow()
+	params.newManager = func(*rest.Config, manager.Options) (manager.Manager, error) {
+		return mockManager{startErr: err}, nil
+	}
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
 }
 
 func getContextForHappyFlow() *mainImplParams {
@@ -109,5 +334,24 @@ func getContextForHappyFlow() *mainImplParams {
 		setupSignalHandler: func() (stopCh <-chan struct{}) {
 			return make(chan struct{})
 		},
+	}
+}
+
+func catchError(t *testing.T) func() {
+	return func() {
+		if r := recover(); r != nil {
+			t.Errorf("Fatal error: %v", r)
+			debug.PrintStack()
+		}
+	}
+}
+
+func validateRecovery(t *testing.T, expected interface{}) func() {
+	return func() {
+		if r := recover(); r != nil {
+			if r != expected {
+				t.Errorf("Error not match, current %v", r)
+			}
+		}
 	}
 }
