@@ -26,6 +26,10 @@ import (
 	"strconv"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+
+	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
+	kRuntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
@@ -34,6 +38,7 @@ import (
 	"github.com/IBM/staticroute-operator/pkg/controller/node"
 	"github.com/IBM/staticroute-operator/pkg/controller/staticroute"
 	"github.com/IBM/staticroute-operator/pkg/routemanager"
+	"github.com/IBM/staticroute-operator/pkg/types"
 	"github.com/IBM/staticroute-operator/version"
 	"github.com/vishvananda/netlink"
 
@@ -80,19 +85,11 @@ func main() {
 		}
 	}()
 
-	// Add the zap logger flag set to the CLI. The flag set must
-	// be added before calling pflag.Parse().
-	pflag.CommandLine.AddFlagSet(zap.FlagSet())
-
-	// Add flags registered by imported packages (e.g. glog and
-	// controller-runtime)
-	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
-
-	pflag.Parse()
+	parseCommandLine()
 
 	// Use a zap logr.Logger implementation. If none of the zap
 	// flags are configured (or if the zap flag set is not being
-	// used), this defaults to a production zap logger.
+	// used), this defaults to a production zap params.logger.
 	//
 	// The logger instantiated here can be changed to any logger
 	// implementing the logr.Logger interface. This logger will
@@ -102,20 +99,75 @@ func main() {
 
 	printVersion()
 
-	metricsNamespace, found := os.LookupEnv("METRICS_NS")
-	if !found {
-		metricsNamespace = defaultMetricsNamespace
-		log.Info("METRICS_NS not defined.", "using", defaultMetricsNamespace)
-	}
+	mainImpl(mainImplParams{
+		logger:                log,
+		getEnv:                os.Getenv,
+		getConfig:             config.GetConfig,
+		newManager:            manager.New,
+		addToScheme:           apis.AddToScheme,
+		serveCRMetrics:        serveCRMetrics,
+		createMetricsService:  metrics.CreateMetricsService,
+		createServiceMonitors: metrics.CreateServiceMonitors,
+		newKubernetesConfig: func(config *rest.Config) (discoverable, error) {
+			clientSet, err := kubernetes.NewForConfig(config)
+			return clientSet, err
+		},
+		newRouterManager:         routemanager.New,
+		addStaticRouteController: staticroute.Add,
+		addNodeController:        node.Add,
+		routerGet: func() (net.IP, error) {
+			route, err := netlink.RouteGet(net.IP{10, 0, 0, 1})
+			if err != nil {
+				return nil, err
+			}
+			return route[0].Gw, nil
+		},
+		setupSignalHandler: signals.SetupSignalHandler,
+	})
+}
 
+func parseCommandLine() {
+	// Add the zap logger flag set to the CLI. The flag set must
+	// be added before calling pflag.Parse().
+	pflag.CommandLine.AddFlagSet(zap.FlagSet())
+
+	// Add flags registered by imported packages (e.g. glog and
+	// controller-runtime)
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+
+	pflag.Parse()
+}
+
+type mainImplParams struct {
+	logger                   types.Logger
+	getEnv                   func(string) string
+	getConfig                func() (*rest.Config, error)
+	newManager               func(*rest.Config, manager.Options) (manager.Manager, error)
+	addToScheme              func(s *kRuntime.Scheme) error
+	serveCRMetrics           func(*rest.Config) error
+	createMetricsService     func(context.Context, *rest.Config, []v1.ServicePort) (*v1.Service, error)
+	createServiceMonitors    func(*rest.Config, string, []*v1.Service, ...metrics.ServiceMonitorUpdater) ([]*monitoringv1.ServiceMonitor, error)
+	newKubernetesConfig      func(*rest.Config) (discoverable, error)
+	newRouterManager         func() routemanager.RouteManager
+	addStaticRouteController func(manager.Manager, staticroute.ManagerOptions) error
+	addNodeController        func(manager.Manager) error
+	routerGet                func() (net.IP, error)
+	setupSignalHandler       func() (stopCh <-chan struct{})
+}
+
+type discoverable interface {
+	Discovery() discovery.DiscoveryInterface
+}
+
+func mainImpl(params mainImplParams) {
 	// Get a config to talk to the apiserver
-	cfg, err := config.GetConfig()
+	cfg, err := params.getConfig()
 	if err != nil {
 		panic(err)
 	}
 
 	// Create a new Cmd to provide shared dependencies and start components
-	mgr, err := manager.New(cfg, manager.Options{
+	mgr, err := params.newManager(cfg, manager.Options{
 		Namespace:          "",
 		MapperProvider:     restmapper.NewDynamicRESTMapper,
 		MetricsBindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort),
@@ -124,15 +176,15 @@ func main() {
 		panic(err)
 	}
 
-	log.Info("Registering Components.")
+	params.logger.Info("Registering Components.")
 
 	// Setup Scheme for all resources
-	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := params.addToScheme(mgr.GetScheme()); err != nil {
 		panic(err)
 	}
 
-	if err = serveCRMetrics(cfg); err != nil {
-		log.Info("Could not generate and serve custom resource metrics", "error", err.Error())
+	if err = params.serveCRMetrics(cfg); err != nil {
+		params.logger.Info("Could not generate and serve custom resource metrics", "error", err.Error())
 	}
 
 	// Add to the below struct any other metrics ports you want to expose.
@@ -141,25 +193,30 @@ func main() {
 		{Port: operatorMetricsPort, Name: metrics.CRPortName, Protocol: v1.ProtocolTCP, TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: operatorMetricsPort}},
 	}
 	// Create Service object to expose the metrics port(s).
-	service, err := metrics.CreateMetricsService(context.Background(), cfg, servicePorts)
+	service, err := params.createMetricsService(context.Background(), cfg, servicePorts)
 	if err != nil {
-		log.Info("Could not create metrics Service", "error", err.Error())
+		params.logger.Info("Could not create metrics Service", "error", err.Error())
 	}
 
 	// CreateServiceMonitors will automatically create the prometheus-operator ServiceMonitor resources
 	// necessary to configure Prometheus to scrape metrics from this operator.
 	services := []*v1.Service{service}
-	_, err = metrics.CreateServiceMonitors(cfg, metricsNamespace, services)
+	metricsNamespace := params.getEnv("METRICS_NS")
+	if len(metricsNamespace) == 0 {
+		metricsNamespace = defaultMetricsNamespace
+		params.logger.Info("METRICS_NS not defined.", "using", defaultMetricsNamespace)
+	}
+	_, err = params.createServiceMonitors(cfg, metricsNamespace, services)
 	if err != nil {
-		log.Info("Could not create ServiceMonitor object", "error", err.Error())
+		params.logger.Info("Could not create ServiceMonitor object", "error", err.Error())
 		// If this operator is deployed to a cluster without the prometheus-operator running, it will return
 		// ErrServiceMonitorNotPresent, which can be used to safely skip ServiceMonitor creation.
 		if err == metrics.ErrServiceMonitorNotPresent {
-			log.Info("Install prometheus-operator in your cluster to create ServiceMonitor objects", "error", err.Error())
+			params.logger.Info("Install prometheus-operator in your cluster to create ServiceMonitor objects", "error", err.Error())
 		}
 	}
 
-	hostname := os.Getenv("NODE_HOSTNAME")
+	hostname := params.getEnv("NODE_HOSTNAME")
 	if hostname == "" {
 		panic("Missing environment variable: NODE_HOSTNAME")
 	}
@@ -175,7 +232,6 @@ func main() {
 	err = c.Get(context.Background(), client.ObjectKey{
 		Name: hostname,
 	}, u)
-
 	if err != nil {
 		panic(err)
 	}
@@ -183,22 +239,12 @@ func main() {
 	labels := u.GetLabels()
 	zone := labels[staticroute.ZoneLabel]
 
-	log.Info(fmt.Sprintf("Node Hostname: %s", hostname))
-	log.Info(fmt.Sprintf("Node Zone: %s", zone))
-	log.Info("Registering Components.")
-
-	clientset, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		panic(err)
-	}
-
-	resources, err := clientset.Discovery().ServerResourcesForGroupVersion("iks.ibm.com/v1")
-	if err != nil {
-		panic(err)
-	}
+	params.logger.Info(fmt.Sprintf("Node Hostname: %s", hostname))
+	params.logger.Info(fmt.Sprintf("Node Zone: %s", zone))
+	params.logger.Info("Registering Components.")
 
 	table := defaultRouteTable
-	targetTableEnv := os.Getenv("TARGET_TABLE")
+	targetTableEnv := params.getEnv("TARGET_TABLE")
 	if len(targetTableEnv) != 0 {
 		if customTable, err := strconv.Atoi(targetTableEnv); err != nil {
 			panic(fmt.Sprintf("Unable to parse custom table 'TARGET_TABLE=%s' %s", targetTableEnv, err.Error()))
@@ -208,7 +254,17 @@ func main() {
 			table = customTable
 		}
 	}
-	log.Info("Table selected", "value", table)
+	params.logger.Info("Table selected", "value", table)
+
+	clientset, err := params.newKubernetesConfig(cfg)
+	if err != nil {
+		panic(err)
+	}
+
+	resources, err := clientset.Discovery().ServerResourcesForGroupVersion("iks.ibm.com/v1")
+	if err != nil {
+		panic(err)
+	}
 
 	crdFound := false
 	for _, resource := range resources.APIResources {
@@ -217,25 +273,19 @@ func main() {
 		}
 
 		// Create RouteManager
-		routeManager := routemanager.New()
+		routeManager := params.newRouterManager()
 		stopChan := make(chan struct{})
 		go func() {
 			panic(routeManager.Run(stopChan))
 		}()
 
 		// Start static route controller
-		if err := staticroute.Add(mgr, staticroute.ManagerOptions{
+		if err := params.addStaticRouteController(mgr, staticroute.ManagerOptions{
 			Hostname:     hostname,
 			Zone:         zone,
 			Table:        table,
 			RouteManager: routeManager,
-			RouteGet: func() (net.IP, error) {
-				route, err := netlink.RouteGet(net.IP{10, 0, 0, 1})
-				if err != nil {
-					return nil, err
-				}
-				return route[0].Gw, nil
-			},
+			RouteGet:     params.routerGet,
 		}); err != nil {
 			panic(err)
 		}
@@ -243,19 +293,19 @@ func main() {
 		break
 	}
 	if !crdFound {
-		log.Info("CRD not found: staticroutes.iks.ibm.com")
+		params.logger.Info("CRD not found: staticroutes.iks.ibm.com")
 		panic(err)
 	}
 
 	// Start node controller
-	if err := node.Add(mgr); err != nil {
+	if err := params.addNodeController(mgr); err != nil {
 		panic(err)
 	}
 
-	log.Info("Starting the Cmd.")
+	params.logger.Info("Starting the Cmd.")
 	// Start the Cmd
-	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
-		log.Error(err, "Manager exited non-zero")
+	if err := mgr.Start(params.setupSignalHandler()); err != nil {
+		params.logger.Error(err, "Manager exited non-zero")
 		panic(err)
 	}
 }
