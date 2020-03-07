@@ -40,7 +40,7 @@ If the user is willing to specify the static route only for a subset of Nodes, i
 * Horizontal Node selection by specifying the worker-pool
 * Vertical Node selection by specifying the compute region
 
-### Black-list of subnets
+### Decline-list of subnets
 In order to avoid user error (i.e. lock-out and/or isolate the node(s)), there shall be a predefined list of subnets, which is immutable during runtime and contains subnets, which are forbidden to use for route creation. The default list in the example manifest files are set to work with IKS.
 
 ### Route table selection
