@@ -41,6 +41,30 @@ func (rw *routeWrapper) isSameZone(zone, label string) bool {
 	return instanceZone == "" || instanceZone == zone
 }
 
+func (rw *routeWrapper) isProtected(protecteds []*net.IPNet) bool {
+	_, subnetNet, err := net.ParseCIDR(rw.instance.Spec.Subnet)
+	if err != nil {
+		return false
+	}
+	inc := func(ip net.IP) {
+		for i := len(ip) - 1; i >= 0; i-- {
+			ip[i]++
+			if ip[i] > 0 {
+				break
+			}
+		}
+	}
+	for _, protected := range protecteds {
+		for ip := protected.IP.Mask(protected.Mask); protected.Contains(ip); inc(ip) {
+			if subnetNet.Contains(ip) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func (rw *routeWrapper) isChanged(hostname, gateway string) bool {
 	for _, s := range rw.instance.Status.NodeStatus {
 		if s.Hostname != hostname {

@@ -45,11 +45,12 @@ var log = logf.Log.WithName("controller_staticroute")
 
 // ManagerOptions contains static route management related node properties
 type ManagerOptions struct {
-	RouteManager routemanager.RouteManager
-	Hostname     string
-	Zone         string
-	Table        int
-	RouteGet     func() (net.IP, error)
+	RouteManager     routemanager.RouteManager
+	Hostname         string
+	Zone             string
+	Table            int
+	ProtectedSubnets []*net.IPNet
+	RouteGet         func() (net.IP, error)
 }
 
 // ReconcileStaticRoute reconciles a StaticRoute object
@@ -112,12 +113,13 @@ type reconcileImplParams struct {
 }
 
 var (
-	crNotFound       = &reconcile.Result{}
-	notSameZone      = &reconcile.Result{}
-	alreadyDeleted   = &reconcile.Result{}
-	deletionFinished = &reconcile.Result{}
-	updateFinished   = &reconcile.Result{Requeue: true}
-	finished         = &reconcile.Result{}
+	crNotFound        = &reconcile.Result{}
+	notSameZone       = &reconcile.Result{}
+	overlapsProtected = &reconcile.Result{}
+	alreadyDeleted    = &reconcile.Result{}
+	deletionFinished  = &reconcile.Result{}
+	updateFinished    = &reconcile.Result{Requeue: true}
+	finished          = &reconcile.Result{}
 
 	crGetError           = &reconcile.Result{}
 	deRegisterError      = &reconcile.Result{}
@@ -155,6 +157,12 @@ func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 		// a zone is specified and the route is not for this zone, ignore
 		reqLogger.Info("Ignoring, zone does not match", "NodeZone", params.options.Zone, "CRZone", instance.GetLabels()[ZoneLabel])
 		return notSameZone, nil
+	}
+
+	if rw.isProtected(params.options.ProtectedSubnets) {
+		// a subnet overlaps some protected, ignore
+		reqLogger.Info("Ignoring, subnet overlaps some protected", "Subnet", rw.instance.Spec.Subnet)
+		return overlapsProtected, nil
 	}
 
 	// If "gateway" is empty, we'll create the route through the default private network gateway
