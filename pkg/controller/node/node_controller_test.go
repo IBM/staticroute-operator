@@ -106,16 +106,34 @@ func TestDelete(t *testing.T) {
 	}
 }
 
-func TestReconcileImplNodeGetNodeFound(t *testing.T) {
-	mockClient := reconcileImplClientMock{
-		client: fake.NewFakeClient(),
-		get: func(context.Context, client.ObjectKey, runtime.Object) error {
-			return nil
-		},
+func TestReconcileImpl(t *testing.T) {
+	var statusUpdateCalled bool
+	statusUpdateCallback := func() client.StatusWriter {
+		statusUpdateCalled = true
+		return nil
 	}
-	params := newReconcileImplParams(mockClient)
+	params, _ := getReconcileContextForHappyFlow(statusUpdateCallback)
 
-	res, err := reconcileImpl(params)
+	res, err := reconcileImpl(*params)
+
+	if res != finished {
+		t.Error("Result must be finished")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+	if statusUpdateCalled {
+		t.Error("Status update called")
+	}
+}
+
+func TestReconcileImplNodeGetNodeFound(t *testing.T) {
+	params, mockClient := getReconcileContextForHappyFlow(nil)
+	mockClient.get = func(context.Context, client.ObjectKey, runtime.Object) error {
+		return nil
+	}
+
+	res, err := reconcileImpl(*params)
 
 	if res != nodeStillExists {
 		t.Error("Result must be nodeStillExists")
@@ -126,15 +144,12 @@ func TestReconcileImplNodeGetNodeFound(t *testing.T) {
 }
 
 func TestReconcileImplNodeGetNodeFatalError(t *testing.T) {
-	mockClient := reconcileImplClientMock{
-		client: fake.NewFakeClient(),
-		get: func(context.Context, client.ObjectKey, runtime.Object) error {
-			return errors.New("fatal error")
-		},
+	params, mockClient := getReconcileContextForHappyFlow(nil)
+	mockClient.get = func(context.Context, client.ObjectKey, runtime.Object) error {
+		return errors.New("fatal error")
 	}
-	params := newReconcileImplParams(mockClient)
 
-	res, err := reconcileImpl(params)
+	res, err := reconcileImpl(*params)
 
 	if res != nodeGetError {
 		t.Error("Result must be nodeGetError")
@@ -146,15 +161,13 @@ func TestReconcileImplNodeGetNodeFatalError(t *testing.T) {
 
 func TestReconcileImplNodeCRListError(t *testing.T) {
 	//err "no kind is registered for the type v1."" because fake client doesn't have CRD
-	mockClient := reconcileImplClientMock{
-		client: fake.NewFakeClient(),
-		get: func(context.Context, client.ObjectKey, runtime.Object) error {
-			return kerrors.NewNotFound(schema.GroupResource{}, "name")
-		},
+	params, mockClient := getReconcileContextForHappyFlow(nil)
+	mockClient.client = fake.NewFakeClient()
+	mockClient.get = func(context.Context, client.ObjectKey, runtime.Object) error {
+		return kerrors.NewNotFound(schema.GroupResource{}, "name")
 	}
-	params := newReconcileImplParams(mockClient)
 
-	res, err := reconcileImpl(params)
+	res, err := reconcileImpl(*params)
 
 	if res != staticRouteListError {
 		t.Error("Result must be staticRouteListError")
@@ -169,37 +182,31 @@ func TestReconcileDeleteError(t *testing.T) {
 	statusWriteMock := statusWriterMock{
 		updateErr: errors.New("update failed"),
 	}
-	routes := &iksv1.StaticRouteList{}
-	mockClient := reconcileImplClientMock{
-		client:          newFakeClient(routes),
-		statusWriteMock: statusWriteMock,
-		get: func(context.Context, client.ObjectKey, runtime.Object) error {
-			return kerrors.NewNotFound(schema.GroupResource{}, "name")
-		},
-		list: func(ctx context.Context, obj runtime.Object, options ...client.ListOption) error {
-			iface := obj.(interface{})
-			routes := iface.(*iksv1.StaticRouteList)
-			routes.Items = []iksv1.StaticRoute{
-				iksv1.StaticRoute{
-					Status: iksv1.StaticRouteStatus{
-						NodeStatus: []iksv1.StaticRouteNodeStatus{
-							iksv1.StaticRouteNodeStatus{
-								Hostname: "CR",
-							},
+	params, mockClient := getReconcileContextForHappyFlow(func() client.StatusWriter {
+		statusUpdateCalled = true
+		return statusWriteMock
+	})
+	mockClient.get = func(context.Context, client.ObjectKey, runtime.Object) error {
+		return kerrors.NewNotFound(schema.GroupResource{}, "name")
+	}
+	mockClient.list = func(ctx context.Context, obj runtime.Object, options ...client.ListOption) error {
+		iface := obj.(interface{})
+		routes := iface.(*iksv1.StaticRouteList)
+		routes.Items = []iksv1.StaticRoute{
+			iksv1.StaticRoute{
+				Status: iksv1.StaticRouteStatus{
+					NodeStatus: []iksv1.StaticRouteNodeStatus{
+						iksv1.StaticRouteNodeStatus{
+							Hostname: "CR",
 						},
 					},
 				},
-			}
-			return nil
-		},
-		status: func() client.StatusWriter {
-			statusUpdateCalled = true
-			return statusWriteMock
-		},
+			},
+		}
+		return nil
 	}
-	params := newReconcileImplParams(mockClient)
 
-	res, err := reconcileImpl(params)
+	res, err := reconcileImpl(*params)
 
 	if res != deleteRouteError {
 		t.Error("Result must be deleteRouteError")
@@ -212,30 +219,17 @@ func TestReconcileDeleteError(t *testing.T) {
 	}
 }
 
-func TestReconcileImpl(t *testing.T) {
-	var statusUpdateCalled bool
+func getReconcileContextForHappyFlow(statusUpdateCallback func() client.StatusWriter) (*reconcileImplParams, *reconcileImplClientMock) {
 	routes := &iksv1.StaticRouteList{}
 	mockClient := reconcileImplClientMock{
 		client: newFakeClient(routes),
 		get: func(context.Context, client.ObjectKey, runtime.Object) error {
 			return kerrors.NewNotFound(schema.GroupResource{}, "name")
 		},
-		status: func() client.StatusWriter {
-			statusUpdateCalled = true
-			return nil
-		},
 	}
-	params := newReconcileImplParams(mockClient)
+	if statusUpdateCallback != nil {
+		mockClient.status = statusUpdateCallback
+	}
 
-	res, err := reconcileImpl(params)
-
-	if res != finished {
-		t.Error("Result must be finished")
-	}
-	if err != nil {
-		t.Errorf("Error must be nil: %s", err.Error())
-	}
-	if statusUpdateCalled {
-		t.Error("Status update called")
-	}
+	return newReconcileImplParams(&mockClient), &mockClient
 }
