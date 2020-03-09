@@ -1,0 +1,12 @@
+apiVersion: iks.ibm.com/v1
+kind: StaticRoute
+metadata:
+  name: example-staticroute-with-selector
+spec:
+  subnet: "192.168.1.0/24"
+  selectors:
+    - 
+      key: "kubernetes.io/arch"
+      operator: In
+      values: 
+        - "amd64"

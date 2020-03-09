@@ -25,8 +25,12 @@ import (
 	iksv1 "github.com/IBM/staticroute-operator/pkg/apis/iks/v1"
 	"github.com/IBM/staticroute-operator/pkg/routemanager"
 	"github.com/IBM/staticroute-operator/pkg/types"
+	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -37,6 +41,9 @@ import (
 )
 
 var (
+	//ZoneLabel Node hostname label to determine hostname
+	HostNameLabel = "kubernetes.io/hostname"
+
 	//ZoneLabel Kubernetes node label to determine node zone
 	ZoneLabel = "failure-domain.beta.kubernetes.io/zone"
 )
@@ -103,6 +110,7 @@ func (r *ReconcileStaticRoute) Reconcile(request reconcile.Request) (reconcile.R
 type reconcileImplClient interface {
 	Get(context.Context, client.ObjectKey, runtime.Object) error
 	Update(context.Context, runtime.Object, ...client.UpdateOption) error
+	List(ctx context.Context, list runtime.Object, opts ...client.ListOption) error
 	Status() client.StatusWriter
 }
 
@@ -115,6 +123,7 @@ type reconcileImplParams struct {
 var (
 	crNotFound        = &reconcile.Result{}
 	notSameZone       = &reconcile.Result{}
+	nodeNotFound      = &reconcile.Result{}
 	overlapsProtected = &reconcile.Result{}
 	alreadyDeleted    = &reconcile.Result{}
 	deletionFinished  = &reconcile.Result{}
@@ -122,6 +131,8 @@ var (
 	finished          = &reconcile.Result{}
 
 	crGetError           = &reconcile.Result{}
+	wrongSelectorErr     = &reconcile.Result{}
+	nodeGetError         = &reconcile.Result{}
 	deRegisterError      = &reconcile.Result{}
 	delStatusUpdateError = &reconcile.Result{}
 	emptyFinalizerError  = &reconcile.Result{}
@@ -134,7 +145,7 @@ var (
 )
 
 func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
-	reqLogger := log.WithValues("Request.Name", params.request.Name)
+	reqLogger := log.WithValues("Node", params.options.Hostname, "Request.Name", params.request.Name)
 	reqLogger.Info("Reconciling StaticRoute")
 
 	// Fetch the StaticRoute instance
@@ -171,7 +182,7 @@ func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 		return res, err
 	}
 
-	isChanged := rw.isChanged(params.options.Hostname, gateway.String())
+	isChanged := rw.isChanged(params.options.Hostname, gateway.String(), rw.instance.Spec.Selectors)
 	reqLogger.Info("The resource is", "changed", isChanged)
 	if instance.GetDeletionTimestamp() != nil || isChanged {
 		if !rw.removeFromStatus(params.options.Hostname) {
@@ -183,6 +194,13 @@ func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 			return updateFinished, err
 		}
 		return res, err
+	}
+
+	if len(rw.instance.Spec.Selectors) > 0 {
+		reqLogger.Info("Node selector found", "Selector", rw.instance.Spec.Selectors)
+		if res, err := validateNodeBySelector(params, &rw, reqLogger); res != nil {
+			return res, err
+		}
 	}
 
 	return addOperation(params, &rw, gateway, params.options.Table, reqLogger)
@@ -204,6 +222,39 @@ func selectGateway(params reconcileImplParams, rw routeWrapper, logger types.Log
 		gateway = defaultGateway
 	}
 	return nil, gateway, nil
+}
+
+func validateNodeBySelector(params reconcileImplParams, rw *routeWrapper, logger types.Logger) (*reconcile.Result, error) {
+	nodes := &corev1.NodeList{}
+	selector := labels.NewSelector()
+	allSelector := rw.instance.Spec.Selectors
+	allSelector = append(allSelector, metav1.LabelSelectorRequirement{
+		Key:      HostNameLabel,
+		Operator: metav1.LabelSelectorOpIn,
+		Values:   []string{params.options.Hostname},
+	})
+	for _, s := range allSelector {
+		operator, err := convertToOperator(s.Operator)
+		if err != nil {
+			log.Info("There is something wrong with the node selector operator", "Value", s)
+			return wrongSelectorErr, nil
+		}
+		req, err := labels.NewRequirement(s.Key, operator, s.Values)
+		if err != nil {
+			log.Info("There is something wrong with the node selector", "Value", s)
+			return wrongSelectorErr, nil
+		}
+		selector = selector.Add(*req)
+	}
+	listOptions := &client.ListOptions{LabelSelector: selector}
+	if err := params.client.List(context.Background(), nodes, listOptions); err != nil {
+		log.Error(err, "Failed to fetch nodes")
+		return nodeGetError, err
+	} else if len(nodes.Items) == 0 {
+		log.Info("Node not found with the given selectors", "Value", allSelector)
+		return nodeNotFound, nil
+	}
+	return nil, nil
 }
 
 func deleteOperation(params reconcileImplParams, rw *routeWrapper, logger types.Logger) (*reconcile.Result, error) {
@@ -274,4 +325,19 @@ func addOperation(params reconcileImplParams, rw *routeWrapper, gateway net.IP, 
 
 	logger.Info("Reconciliation done, no add, no delete.")
 	return finished, nil
+}
+
+func convertToOperator(operator metav1.LabelSelectorOperator) (selection.Operator, error) {
+	switch operator {
+	case metav1.LabelSelectorOpIn:
+		return selection.In, nil
+	case metav1.LabelSelectorOpNotIn:
+		return selection.NotIn, nil
+	case metav1.LabelSelectorOpExists:
+		return selection.Exists, nil
+	case metav1.LabelSelectorOpDoesNotExist:
+		return selection.DoesNotExist, nil
+	default:
+		return selection.Equals, errors.New("Unable to convert operator")
+	}
 }

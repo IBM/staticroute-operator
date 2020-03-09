@@ -37,6 +37,9 @@ type StaticRouteSpec struct {
 	// Gateway the gateway the subnet is routed through (optional, discovered if not set)
 	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}$`
 	Gateway string `json:"gateway,omitempty"`
+
+	// Selector defines the target nodes by requirement (optional, default is apply to all)
+	Selectors []metav1.LabelSelectorRequirement `json:"selectors,omitempty"`
 }
 
 // StaticRouteNodeStatus defines the observed state of one IKS node, related to the StaticRoute

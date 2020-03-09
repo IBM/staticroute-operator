@@ -74,7 +74,7 @@ func TestIsSameZone(t *testing.T) {
 		res := rw.isSameZone(td.zone, ZoneLabel)
 
 		if res != td.result {
-			t.Errorf("Result must be %t, it is %t ad %d", td.result, res, i)
+			t.Errorf("Result must be %t, it is %t at %d", td.result, res, i)
 		}
 	}
 }
@@ -120,21 +120,23 @@ func TestIsProtected(t *testing.T) {
 		res := rw.isProtected(td.protecteds)
 
 		if res != td.result {
-			t.Errorf("Result must be %t, it is %t ad %d", td.result, res, i)
+			t.Errorf("Result must be %t, it is %t at %d", td.result, res, i)
 		}
 	}
 }
 
 func TestIsChanged(t *testing.T) {
 	var testData = []struct {
-		hostname string
-		gateway  string
-		route    *iksv1.StaticRoute
-		result   bool
+		hostname  string
+		gateway   string
+		selectors []metav1.LabelSelectorRequirement
+		route     *iksv1.StaticRoute
+		result    bool
 	}{
 		{
 			"hostname",
 			"gateway",
+			nil,
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
 					Subnet: "subnet",
@@ -145,6 +147,7 @@ func TestIsChanged(t *testing.T) {
 		{
 			"hostname",
 			"gateway",
+			nil,
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
 					Subnet: "subnet",
@@ -166,6 +169,7 @@ func TestIsChanged(t *testing.T) {
 		{
 			"hostname",
 			"gateway2",
+			nil,
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
 					Subnet: "subnet",
@@ -187,6 +191,7 @@ func TestIsChanged(t *testing.T) {
 		{
 			"hostname",
 			"gateway",
+			nil,
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
 					Subnet: "subnet2",
@@ -208,6 +213,7 @@ func TestIsChanged(t *testing.T) {
 		{
 			"hostname",
 			"gateway2",
+			nil,
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
 					Subnet: "subnet2",
@@ -229,6 +235,7 @@ func TestIsChanged(t *testing.T) {
 		{
 			"hostname",
 			"gateway2",
+			nil,
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
 					Subnet: "subnet2",
@@ -257,6 +264,7 @@ func TestIsChanged(t *testing.T) {
 		{
 			"hostname",
 			"gateway",
+			nil,
 			&iksv1.StaticRoute{
 				Spec: iksv1.StaticRouteSpec{
 					Subnet: "subnet",
@@ -282,15 +290,41 @@ func TestIsChanged(t *testing.T) {
 			},
 			false,
 		},
+		{
+			"hostname",
+			"gateway",
+			[]metav1.LabelSelectorRequirement{metav1.LabelSelectorRequirement{
+				Key:      HostNameLabel,
+				Operator: metav1.LabelSelectorOpIn,
+				Values:   []string{"hostname"},
+			}},
+			&iksv1.StaticRoute{
+				Spec: iksv1.StaticRouteSpec{
+					Subnet: "subnet",
+				},
+				Status: iksv1.StaticRouteStatus{
+					NodeStatus: []iksv1.StaticRouteNodeStatus{
+						iksv1.StaticRouteNodeStatus{
+							Hostname: "hostname",
+							State: iksv1.StaticRouteSpec{
+								Subnet:  "subnet",
+								Gateway: "gateway",
+							},
+						},
+					},
+				},
+			},
+			true,
+		},
 	}
 
 	for i, td := range testData {
 		rw := routeWrapper{instance: td.route}
 
-		res := rw.isChanged(td.hostname, td.gateway)
+		res := rw.isChanged(td.hostname, td.gateway, td.selectors)
 
 		if res != td.result {
-			t.Errorf("Result must be %t, it is %t ad %d", td.result, res, i)
+			t.Errorf("Result must be %t, it is %t at %d", td.result, res, i)
 		}
 	}
 }

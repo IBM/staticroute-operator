@@ -18,8 +18,10 @@ package staticroute
 
 import (
 	"net"
+	"reflect"
 
 	iksv1 "github.com/IBM/staticroute-operator/pkg/apis/iks/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type routeWrapper struct {
@@ -65,11 +67,11 @@ func (rw *routeWrapper) isProtected(protecteds []*net.IPNet) bool {
 	return false
 }
 
-func (rw *routeWrapper) isChanged(hostname, gateway string) bool {
+func (rw *routeWrapper) isChanged(hostname, gateway string, selectors []metav1.LabelSelectorRequirement) bool {
 	for _, s := range rw.instance.Status.NodeStatus {
 		if s.Hostname != hostname {
 			continue
-		} else if s.State.Subnet != rw.instance.Spec.Subnet || s.State.Gateway != gateway {
+		} else if s.State.Subnet != rw.instance.Spec.Subnet || s.State.Gateway != gateway || !reflect.DeepEqual(s.State.Selectors, selectors) {
 			return true
 		}
 	}

@@ -21,6 +21,7 @@ import (
 
 	iksv1 "github.com/IBM/staticroute-operator/pkg/apis/iks/v1"
 	"github.com/IBM/staticroute-operator/pkg/routemanager"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,6 +36,7 @@ type reconcileImplClientMock struct {
 	postfixGet      func(runtime.Object)
 	getErr          error
 	updateErr       error
+	listErr         error
 }
 
 func (m reconcileImplClientMock) Get(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
@@ -52,6 +54,13 @@ func (m reconcileImplClientMock) Update(ctx context.Context, obj runtime.Object,
 		return m.updateErr
 	}
 	return m.client.Update(ctx, obj, options...)
+}
+
+func (m reconcileImplClientMock) List(ctx context.Context, list runtime.Object, options ...client.ListOption) error {
+	if m.listErr != nil {
+		return m.listErr
+	}
+	return m.client.List(ctx, list, options...)
 }
 
 func (m reconcileImplClientMock) Status() client.StatusWriter {
@@ -109,6 +118,8 @@ func (m routeManagerMock) Run(chan struct{}) error {
 func newFakeClient(route *iksv1.StaticRoute) client.Client {
 	s := runtime.NewScheme()
 	s.AddKnownTypes(iksv1.SchemeGroupVersion, route)
+	nodes := &corev1.NodeList{}
+	s.AddKnownTypes(corev1.SchemeGroupVersion, nodes)
 	return fake.NewFakeClientWithScheme(s, []runtime.Object{route}...)
 }
 

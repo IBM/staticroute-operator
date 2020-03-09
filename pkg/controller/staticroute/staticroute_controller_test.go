@@ -23,10 +23,44 @@ import (
 
 	iksv1 "github.com/IBM/staticroute-operator/pkg/apis/iks/v1"
 	"github.com/IBM/staticroute-operator/pkg/routemanager"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
+
+func TestConvertTooperator(t *testing.T) {
+	var testData = []struct {
+		in  metav1.LabelSelectorOperator
+		out selection.Operator
+	}{
+		{
+			in:  metav1.LabelSelectorOpIn,
+			out: selection.In,
+		},
+		{
+			in:  metav1.LabelSelectorOpNotIn,
+			out: selection.NotIn,
+		},
+		{
+			in:  metav1.LabelSelectorOpExists,
+			out: selection.Exists,
+		},
+		{
+			in:  metav1.LabelSelectorOpDoesNotExist,
+			out: selection.DoesNotExist,
+		},
+	}
+
+	for i, td := range testData {
+		out, _ := convertToOperator(td.in)
+
+		if out != td.out {
+			t.Errorf("Result must be %v, it is %v at %d", td.out, out, i)
+		}
+	}
+}
 
 func TestReconcileImpl(t *testing.T) {
 	params, _ := getReconcileContextForAddFlow(nil, true)
@@ -134,6 +168,84 @@ func TestReconcileImplUpdated(t *testing.T) {
 
 	if res != updateFinished {
 		t.Error("Result must be updateFinished")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+}
+
+func TestReconcileImplNodeSelectorMissingOp(t *testing.T) {
+	route := newStaticRouteWithValues(true, false)
+	route.Spec.Selectors = []metav1.LabelSelectorRequirement{metav1.LabelSelectorRequirement{
+		Key:    "key",
+		Values: []string{"value"},
+	}}
+	params, mockClient := getReconcileContextForAddFlow(route, true)
+	mockClient.listErr = errors.New("Couldn't fetch nodes")
+
+	res, err := reconcileImpl(*params)
+
+	if res != wrongSelectorErr {
+		t.Error("Result must be wrongSelectorErr")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+}
+
+func TestReconcileImplNodeSelectorInvalid(t *testing.T) {
+	route := newStaticRouteWithValues(true, false)
+	route.Spec.Selectors = []metav1.LabelSelectorRequirement{metav1.LabelSelectorRequirement{
+		Key:      "",
+		Operator: metav1.LabelSelectorOpIn,
+		Values:   []string{"value"},
+	}}
+	params, mockClient := getReconcileContextForAddFlow(route, true)
+	mockClient.listErr = errors.New("Couldn't fetch nodes")
+
+	res, err := reconcileImpl(*params)
+
+	if res != wrongSelectorErr {
+		t.Error("Result must be wrongSelectorErr")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+}
+
+func TestReconcileImplNodeSelectorFatalError(t *testing.T) {
+	route := newStaticRouteWithValues(true, false)
+	route.Spec.Selectors = []metav1.LabelSelectorRequirement{metav1.LabelSelectorRequirement{
+		Key:      "key",
+		Operator: metav1.LabelSelectorOpIn,
+		Values:   []string{"value"},
+	}}
+	params, mockClient := getReconcileContextForAddFlow(route, true)
+	mockClient.listErr = errors.New("Couldn't fetch nodes")
+
+	res, err := reconcileImpl(*params)
+
+	if res != nodeGetError {
+		t.Error("Result must be nodeGetError")
+	}
+	if err == nil {
+		t.Error("Error must be not nil")
+	}
+}
+
+func TestReconcileImplNodeSelectorNotFound(t *testing.T) {
+	route := newStaticRouteWithValues(true, false)
+	route.Spec.Selectors = []metav1.LabelSelectorRequirement{metav1.LabelSelectorRequirement{
+		Key:      "key",
+		Operator: metav1.LabelSelectorOpIn,
+		Values:   []string{"value"},
+	}}
+	params, _ := getReconcileContextForAddFlow(route, true)
+
+	res, err := reconcileImpl(*params)
+
+	if res != nodeNotFound {
+		t.Error("Result must be nodeNotFound")
 	}
 	if err != nil {
 		t.Errorf("Error must be nil: %s", err.Error())
