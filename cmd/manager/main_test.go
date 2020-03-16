@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"regexp"
 	"runtime/debug"
@@ -126,12 +127,42 @@ func TestMainImplCreateServiceMonitorsFailsNotPreset(t *testing.T) {
 
 	mainImpl(*params)
 }
-func TestMainImplTargetTableMore(t *testing.T) {
+func TestMainImplTargetTableOk(t *testing.T) {
+	var actualTable int
 	defer catchError(t)()
 	params, _ := getContextForHappyFlow()
-	params.getEnv = getEnvMock("", "hostname", "42")
+	params.getEnv = getEnvMock("", "hostname", "42", "")
+	params.addStaticRouteController = func(mgr manager.Manager, options staticroute.ManagerOptions) error {
+		actualTable = options.Table
+		return nil
+	}
 
 	mainImpl(*params)
+
+	if actualTable != 42 {
+		t.Errorf("Target table not match 42 != %d", actualTable)
+	}
+}
+
+func TestMainImplProtectedSubnetsOk(t *testing.T) {
+	var actualSubnets []*net.IPNet
+	defer catchError(t)()
+	params, _ := getContextForHappyFlow()
+	params.getEnv = getEnvMock("", "hostname", "", " 10.0.0.0/8 , 192.168.0.0/24 ")
+	params.addStaticRouteController = func(mgr manager.Manager, options staticroute.ManagerOptions) error {
+		actualSubnets = options.ProtectedSubnets
+		return nil
+	}
+
+	mainImpl(*params)
+
+	expectedSubnets := []*net.IPNet{
+		&net.IPNet{IP: net.IP{10, 0, 0, 0}, Mask: net.IPv4Mask(0xff, 0, 0, 0)},
+		&net.IPNet{IP: net.IP{192, 168, 0, 0}, Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
+	}
+	if fmt.Sprintf("%v", expectedSubnets) != fmt.Sprintf("%v", actualSubnets) {
+		t.Errorf("Protected subnets are not match %v != %v", expectedSubnets, actualSubnets)
+	}
 }
 
 func TestMainImplGetConfigFails(t *testing.T) {
@@ -176,7 +207,7 @@ func TestMainImplAddToSchemeFails(t *testing.T) {
 func TestMainImplHostnameMissing(t *testing.T) {
 	defer validateRecovery(t, "Missing environment variable: NODE_HOSTNAME")()
 	params, _ := getContextForHappyFlow()
-	params.getEnv = getEnvMock("", "", "")
+	params.getEnv = getEnvMock("", "", "", "")
 
 	mainImpl(*params)
 
@@ -209,27 +240,37 @@ func TestMainImplNodeGetFails(t *testing.T) {
 func TestMainImplTargetTableInvalid(t *testing.T) {
 	defer validateRecovery(t, "Unable to parse custom table 'TARGET_TABLE=invalid-table' strconv.Atoi: parsing \"invalid-table\": invalid syntax")()
 	params, _ := getContextForHappyFlow()
-	params.getEnv = getEnvMock("", "hostname", "invalid-table")
+	params.getEnv = getEnvMock("", "hostname", "invalid-table", "")
 
 	mainImpl(*params)
 
 	t.Error("Error didn't appear")
 }
 
-func TestMainImplTargetTableLessThan(t *testing.T) {
+func TestMainImplTargetTableFewer(t *testing.T) {
 	defer validateRecovery(t, "Target table must be between 0 and 254 'TARGET_TABLE=-1'")()
 	params, _ := getContextForHappyFlow()
-	params.getEnv = getEnvMock("", "hostname", "-1")
+	params.getEnv = getEnvMock("", "hostname", "-1", "")
 
 	mainImpl(*params)
 
 	t.Error("Error didn't appear")
 }
 
-func TestMainImplTargetTableMoreThan(t *testing.T) {
+func TestMainImplTargetTableGreater(t *testing.T) {
 	defer validateRecovery(t, "Target table must be between 0 and 254 'TARGET_TABLE=255'")()
 	params, _ := getContextForHappyFlow()
-	params.getEnv = getEnvMock("", "hostname", "255")
+	params.getEnv = getEnvMock("", "hostname", "255", "")
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplProtectedSubnetsInvalid(t *testing.T) {
+	defer validateRecovery(t, "invalid CIDR address: 10.0.0.0/8 ; 192.168.0.0/24")()
+	params, _ := getContextForHappyFlow()
+	params.getEnv = getEnvMock("", "hostname", "", " 10.0.0.0/8 ; 192.168.0.0/24 ")
 
 	mainImpl(*params)
 
@@ -318,7 +359,7 @@ func getContextForHappyFlow() (*mainImplParams, *mockCallbacks) {
 	callbacks := mockCallbacks{}
 	return &mainImplParams{
 		logger: mockLogger{},
-		getEnv: getEnvMock("", "hostname", ""),
+		getEnv: getEnvMock("", "hostname", "", ""),
 		getConfig: func() (*rest.Config, error) {
 			callbacks.getConfigCalled = true
 			return nil, nil
@@ -384,8 +425,8 @@ func catchError(t *testing.T) func() {
 func validateRecovery(t *testing.T, expected interface{}) func() {
 	return func() {
 		if r := recover(); r != nil {
-			if r != expected {
-				t.Errorf("Error not match, current %v", r)
+			if fmt.Sprintf("%v", r) != fmt.Sprintf("%v", expected) {
+				t.Errorf("Error not match '%v' != '%v'", r, expected)
 			}
 		}
 	}

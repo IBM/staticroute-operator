@@ -24,6 +24,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 
@@ -243,19 +244,6 @@ func mainImpl(params mainImplParams) {
 	params.logger.Info(fmt.Sprintf("Node Zone: %s", zone))
 	params.logger.Info("Registering Components.")
 
-	table := defaultRouteTable
-	targetTableEnv := params.getEnv("TARGET_TABLE")
-	if len(targetTableEnv) != 0 {
-		if customTable, err := strconv.Atoi(targetTableEnv); err != nil {
-			panic(fmt.Sprintf("Unable to parse custom table 'TARGET_TABLE=%s' %s", targetTableEnv, err.Error()))
-		} else if customTable < 0 || customTable > 254 {
-			panic(fmt.Sprintf("Target table must be between 0 and 254 'TARGET_TABLE=%s'", targetTableEnv))
-		} else {
-			table = customTable
-		}
-	}
-	params.logger.Info("Table selected", "value", table)
-
 	clientset, err := params.newKubernetesConfig(cfg)
 	if err != nil {
 		panic(err)
@@ -264,6 +252,18 @@ func mainImpl(params mainImplParams) {
 	resources, err := clientset.Discovery().ServerResourcesForGroupVersion("iks.ibm.com/v1")
 	if err != nil {
 		panic(err)
+	}
+
+	table := defaultRouteTable
+	targetTableEnv := params.getEnv("TARGET_TABLE")
+	if len(targetTableEnv) != 0 {
+		table = parseTargetTable(targetTableEnv)
+	}
+	params.logger.Info("Table selected", "value", table)
+
+	var protectedSubnets []*net.IPNet
+	if subnetsEnv := params.getEnv("PROTECTED_SUBNETS"); subnetsEnv != "" {
+		protectedSubnets = parseProtectedSubnets(subnetsEnv)
 	}
 
 	crdFound := false
@@ -281,11 +281,12 @@ func mainImpl(params mainImplParams) {
 
 		// Start static route controller
 		if err := params.addStaticRouteController(mgr, staticroute.ManagerOptions{
-			Hostname:     hostname,
-			Zone:         zone,
-			Table:        table,
-			RouteManager: routeManager,
-			RouteGet:     params.routerGet,
+			Hostname:         hostname,
+			Zone:             zone,
+			Table:            table,
+			ProtectedSubnets: protectedSubnets,
+			RouteManager:     routeManager,
+			RouteGet:         params.routerGet,
 		}); err != nil {
 			panic(err)
 		}
@@ -308,6 +309,28 @@ func mainImpl(params mainImplParams) {
 		params.logger.Error(err, "Manager exited non-zero")
 		panic(err)
 	}
+}
+
+func parseTargetTable(targetTableEnv string) int {
+	if customTable, err := strconv.Atoi(targetTableEnv); err != nil {
+		panic(fmt.Sprintf("Unable to parse custom table 'TARGET_TABLE=%s' %s", targetTableEnv, err.Error()))
+	} else if customTable < 0 || customTable > 254 {
+		panic(fmt.Sprintf("Target table must be between 0 and 254 'TARGET_TABLE=%s'", targetTableEnv))
+	} else {
+		return customTable
+	}
+}
+
+func parseProtectedSubnets(subnetsEnv string) []*net.IPNet {
+	protectedSubnets := []*net.IPNet{}
+	for _, subnet := range strings.Split(subnetsEnv, ",") {
+		_, subnetNet, err := net.ParseCIDR(strings.Trim(subnet, " "))
+		if err != nil {
+			panic(err)
+		}
+		protectedSubnets = append(protectedSubnets, subnetNet)
+	}
+	return protectedSubnets
 }
 
 // serveCRMetrics gets the Operator/CustomResource GVKs and generates metrics based on those types.

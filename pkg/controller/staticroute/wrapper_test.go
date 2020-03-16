@@ -79,6 +79,52 @@ func TestIsSameZone(t *testing.T) {
 	}
 }
 
+func TestIsProtected(t *testing.T) {
+	var testData = []struct {
+		protecteds []*net.IPNet
+		route      *iksv1.StaticRoute
+		result     bool
+	}{
+		{
+			nil,
+			&iksv1.StaticRoute{
+				Spec: iksv1.StaticRouteSpec{
+					Subnet: "invalid-subnet",
+				},
+			},
+			false,
+		},
+		{
+			nil,
+			&iksv1.StaticRoute{
+				Spec: iksv1.StaticRouteSpec{
+					Subnet: "10.0.0.1/16",
+				},
+			},
+			false,
+		},
+		{
+			[]*net.IPNet{&net.IPNet{IP: net.IP{192, 168, 0, 0}, Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)}},
+			&iksv1.StaticRoute{
+				Spec: iksv1.StaticRouteSpec{
+					Subnet: "192.168.0.1/24",
+				},
+			},
+			true,
+		},
+	}
+
+	for i, td := range testData {
+		rw := routeWrapper{instance: td.route}
+
+		res := rw.isProtected(td.protecteds)
+
+		if res != td.result {
+			t.Errorf("Result must be %t, it is %t ad %d", td.result, res, i)
+		}
+	}
+}
+
 func TestIsChanged(t *testing.T) {
 	var testData = []struct {
 		hostname string
@@ -247,7 +293,6 @@ func TestIsChanged(t *testing.T) {
 			t.Errorf("Result must be %t, it is %t ad %d", td.result, res, i)
 		}
 	}
-
 }
 
 func TestRouteWrapperSetFinalizer(t *testing.T) {
