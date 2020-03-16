@@ -37,7 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
-func getEnvMock(metricsNS, nodeHostName, targetTable string) func(string) string {
+func getEnvMock(metricsNS, nodeHostName, targetTable, protectedSubnets string) func(string) string {
 	return func(key string) string {
 		switch key {
 		case "METRICS_NS":
@@ -46,6 +46,8 @@ func getEnvMock(metricsNS, nodeHostName, targetTable string) func(string) string
 			return nodeHostName
 		case "TARGET_TABLE":
 			return targetTable
+		case "PROTECTED_SUBNETS":
+			return protectedSubnets
 		default:
 			return ""
 		}

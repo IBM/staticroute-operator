@@ -84,6 +84,20 @@ func TestReconcileImplNotSameZone(t *testing.T) {
 	}
 }
 
+func TestReconcileImplProtected(t *testing.T) {
+	params, _ := getReconcileContextForAddFlow(nil, true)
+	params.options.ProtectedSubnets = []*net.IPNet{&net.IPNet{IP: net.IP{10, 0, 0, 0}, Mask: net.IPv4Mask(0xff, 0, 0, 0)}}
+
+	res, err := reconcileImpl(*params)
+
+	if res != overlapsProtected {
+		t.Error("Result must be overlapsProtected")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+}
+
 func TestReconcileImplNotDeleted(t *testing.T) {
 	route := newStaticRouteWithValues(true, false)
 	params, mockClient := getReconcileContextForAddFlow(route, true)
