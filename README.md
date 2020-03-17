@@ -1,7 +1,61 @@
 # staticroute-operator
 Static IP route operator for Kubernetes clusters
 
-# Prerequisites
+This project is under development, use it on your own risk please.
+
+# Usage
+
+Public OCI images are not available yet. To give a try to the project you have to build your own image and store it in your image repository. Please follow some easy steps under `Development` section of the page.
+After build you have to apply some Kubernetes manifests: `deploy/crds/iks.ibm.com_staticroutes_crd.yaml`, `deploy/service_account.yaml`, `deploy/role.yaml`, `deploy/role_binding.yaml` and `deploy/operator.dev.yaml`.
+Finaly you have to create `StaticRoute` custom resource on the cluster. The operator will pick it up and creates underlaying routing policies based on the given resource.
+
+## Sample custom resources
+
+Route a subnet across the default gateway.
+```
+apiVersion: iks.ibm.com/v1
+kind: StaticRoute
+metadata:
+  name: example-staticroute
+spec:
+  subnet: "192.168.0.0/24"
+```
+
+Route a subnet to the custom gateway.
+```
+apiVersion: iks.ibm.com/v1
+kind: StaticRoute
+metadata:
+  name: example-staticroute
+spec:
+  subnet: "192.168.0.0/24"
+  gateway: "10.0.0.1"
+```
+
+Selecting target node(s) of the static route by label(s):
+```
+apiVersion: iks.ibm.com/v1
+kind: StaticRoute
+metadata:
+  name: example-staticroute-with-selector
+spec:
+  subnet: "192.168.1.0/24"
+  selectors:
+    -
+      key: "kubernetes.io/arch"
+      operator: In
+      values:
+        - "amd64"
+```
+
+## Runtime customizations of operator
+
+ * Routing table: By default static route controller uses #254 table to configure static routes. The table number is configurable by giving a valid number between 0 and 254 as `TARGET_TABLE` environment variable. Changing the target table on a running operator is not supported. You have to properly terminate all the existing static routes by deleting the custom resources before restarting the operator with the new config.
+ * Protect subnets: Static route operator allows to set any subnet as routing destination. In some cases users can break the entire network by mistake. To protect some of the subnets you can use a comma separated list in `PROTECTED_SUBNETS` environment variable. The operator will ignore custom route if the subnets (in the custom resource and the protected list) are overlapping each other.
+
+# Development
+
+## Prerequisites
 The following components are needed to be installed on your environment:
   * git
   * go 1.13+
@@ -15,17 +69,15 @@ The following components are needed to be installed on your environment:
     - export `KUBECONFIG` environment variable to the path of kubeconfig file (if not set, default $$HOME/.kube/config will be used)
     - login to your docker registry using your credentials (ie.: docker login... , ibmcloud cr login etc.)
 
-# Customizations
- * Routing table: By default static route controller uses #254 table to configure static routes. The table number is configurable by giving a valid number between 0 and 254 as `TARGET_TABLE` environment variable. Changing the target table on a running operator is not supported. You have to properly terminate all the existing static routes by deleting the custom resources before restarting the operator with the new config.
- * Protect subnets: Static route operator allows to set any subnet as routing destination. In some cases users can break the entire network by mistake. To protect some of the subnets you can use a comma separated list in `PROTECTED_SUBNETS` environment variable. The operator will ignore custom route if the subnets (in the custom resource and the protected list) are overlapping each other.
 
-# Updating the Custom Resource Definitions (CRDs)
+## Updating the Custom Resource Definitions (CRDs)
 Make sure, that every time you modify anything in `*_types.go` file, run the `make update-operator-resource` to update generated code for `k8s` and `CRDs`.
 
-# Building the static route operator
-`make dev-publish-image` target can be used for updating, building and publishing the operator image into your Docker repository
+## Building the static route operator
+`make build-operator` target can be used for updating, building operator. It executes all the static code analyzing.
+`make dev-publish-image` publishes a new build of the operator image into your Docker repository.
 
-# Testing the changes
+## Testing the changes
 Once you have made changes in the source, you have two option to run and test your operator:
 - as a `deployment` inside a Kubernetes cluster
 - as a binary program running locally on your development environment
@@ -35,7 +87,7 @@ Once you have made changes in the source, you have two option to run and test yo
   2. Run as a Go program on your local development environment
      - run `make dev-run-operator-local`
 
-# Setting Travis-CI [WIP]
+## Setting Travis-CI
 If you want to test, build and publish your changes into your own personal repo after forking this project, you need to following variables set up in Travis instance associated to your github project:
   - DOCKER_IMAGE_NAME, this is the name of your docker image ie. myrepo/staticroute-operator
   - DOCKER_REGISTRY_LIST, you need at least one docker repository url to publish docker images. This is a comma separated list of repo urls.
@@ -44,5 +96,3 @@ If you want to test, build and publish your changes into your own personal repo 
   - GH_TOKEN, github token generated to access (tag, and push) to your github repository
   - and a set of variables that contains the docker password for each repository url ie. if you set `my.docker.repo.io,quay.io` in DOCKER_REGISTRY_LIST than you need a `my_docker_repo_io` and `quay_io` secrets with the corresponding passwords
   (Note: you should take care of GH_TOKEN and docker passwords to be non-visible secrets in Travis!)
-
-# Publishing the operator using Travis [WIP]
