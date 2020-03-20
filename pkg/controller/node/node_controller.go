@@ -84,7 +84,6 @@ func (r *ReconcileNode) Reconcile(request reconcile.Request) (reconcile.Result, 
 
 type reconcileImplClient interface {
 	Get(context.Context, client.ObjectKey, runtime.Object) error
-	Update(context.Context, runtime.Object, ...client.UpdateOption) error
 	List(context.Context, runtime.Object, ...client.ListOption) error
 	Status() client.StatusWriter
 }
