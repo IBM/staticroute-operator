@@ -1,11 +1,22 @@
 GO111MODULE:=on
 DOCKER_BUILDKIT=1
 GO_PACKAGES=$(shell go list ./... | grep -v /tests/)
-GO_FILES = $(shell find . -type f -name '*.go' -not -path "./.git/*")
+GO_FILES=$(shell find . -type f -name '*.go' -not -path "./.git/*")
 GOLANGCI_LINT_EXISTS:=$(shell golangci-lint --version 2>/dev/null)
-REGISTRY_REPO?=quay.io/example/staticroute-operator
-KUBECONFIG?=$$HOME/.kube/config
 GIT_COMMIT_SHA:=$(shell git rev-parse HEAD 2>/dev/null)
+
+include Makefile.env
+
+deps:
+	make _deps-$(shell uname | tr '[:upper:]' '[:lower:]')
+
+_deps-darwin:
+	$(error Operating system not supported)
+
+_deps-linux:
+	curl -sL https://github.com/operator-framework/operator-sdk/releases/download/v${OP_SDK_RELEASE_VERSION}/operator-sdk-v${OP_SDK_RELEASE_VERSION}-x86_64-linux-gnu > ${INSTALL_LOCATION}/operator-sdk
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ${INSTALL_LOCATION} v${GOLANGCI_LINT_VERSION}
+	chmod +x ${INSTALL_LOCATION}/operator-sdk
 
 _calculate-build-number:
     $(eval export CONTAINER_VERSION?=$(GIT_COMMIT_SHA)-$(shell date "+%s"))
