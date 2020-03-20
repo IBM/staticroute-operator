@@ -2,12 +2,6 @@
 if: branch !~ ^build-[0-9]*$ AND tag !~ ^build-[0-9]*$ AND branch !~ ^v[0-9]*.[0-9]*.[0-9]*$ AND tag !~ ^v[0-9]*.[0-9]*.[0-9]*$
 language: go
 
-env:
-  global:
-    #Operator SDK release version
-    - OP_SDK_RELEASE_VERSION=v0.15.1
-    - GOLANGCI_LINT_VERSION=v1.23.6
-
 go:
 - "1.13.5"
 
@@ -30,9 +24,7 @@ services:
 - docker
 
 before_install:
-- curl -LO https://github.com/operator-framework/operator-sdk/releases/download/${OP_SDK_RELEASE_VERSION}/operator-sdk-${OP_SDK_RELEASE_VERSION}-x86_64-linux-gnu
-- chmod +x operator-sdk-${OP_SDK_RELEASE_VERSION}-x86_64-linux-gnu && sudo mv operator-sdk-${OP_SDK_RELEASE_VERSION}-x86_64-linux-gnu /usr/local/bin/operator-sdk
-- curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $GOPATH/bin ${GOLANGCI_LINT_VERSION}
+- sudo make deps
 
 after_failure:
 - echo "Job failed, check the output above"
