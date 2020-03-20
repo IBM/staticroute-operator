@@ -42,10 +42,6 @@ func (m reconcileImplClientMock) Get(ctx context.Context, key client.ObjectKey, 
 	return m.client.Get(ctx, key, obj)
 }
 
-func (m reconcileImplClientMock) Update(ctx context.Context, obj runtime.Object, options ...client.UpdateOption) error {
-	return m.client.Update(ctx, obj, options...)
-}
-
 func (m reconcileImplClientMock) List(ctx context.Context, obj runtime.Object, options ...client.ListOption) error {
 	if m.list != nil {
 		return m.list(ctx, obj, options...)
