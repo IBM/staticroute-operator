@@ -1,11 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -e
 set -o pipefail
 
 SCRIPT_PATH=$PWD/$(dirname "$0")
 KIND_CLUSTER_NAME="staticroute-operator-fvt"
-DEBUG="false"
-
+DEBUG="${DEBUG:-false}"
 # shellcheck source=scripts/fvt-tools.sh
 . "${SCRIPT_PATH}/fvt-tools.sh"
 
@@ -95,14 +94,22 @@ check_staticroute_crd_status "example-staticroute-simple"
 check_staticroute_crd_status "example-staticroute-with-gateway"
 check_staticroute_crd_status "example-staticroute-with-selector" "${KIND_CLUSTER_NAME}-worker2"
 
-fvtlog "Test 01 - Check that all workers have applied the route to 192.168.0.0/24"
+fvtlog "Test example-staticroute-simple - Check that all workers have applied the route to 192.168.0.0/24"
 check_route_in_container "192.168.0.0/24 via 172.17.0.1"
 
-fvtlog "Test 02 - Check that all workers have applied the route to 192.168.1.0/24 with the defined next-hop address"
+fvtlog "Test example-staticroute-with-gateway - Check that all workers have applied the route to 192.168.1.0/24 with the defined next-hop address"
 check_route_in_container "192.168.1.0/24 via 172.17.0.3"
 
-fvtlog "Test 03 - Check that only worker2 has applied the route to 192.168.2.0/24"
+fvtlog "Test example-staticroute-with-selector - Check that only worker2 has applied the route to 192.168.2.0/24"
 check_route_in_container "192.168.2.0/24 via 172.17.0.1" "${KIND_CLUSTER_NAME}-worker" "negative"
 check_route_in_container "192.168.2.0/24 via 172.17.0.1" "${KIND_CLUSTER_NAME}-worker2"
+
+fvtlog "Test staticroute deletion"
+kubectl delete staticroute example-staticroute-simple
+check_route_in_container "192.168.0.0/24 via 172.17.0.1" "all" "negative"
+kubectl delete staticroute example-staticroute-with-gateway
+check_route_in_container "192.168.1.0/24 via 172.17.0.3" "all" "negative"
+kubectl delete staticroute example-staticroute-with-selector
+check_route_in_container "192.168.2.0/24 via 172.17.0.1" "${KIND_CLUSTER_NAME}-worker2" "negative"
 
 fvtlog "All tests passed!"
