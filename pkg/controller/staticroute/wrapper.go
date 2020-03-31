@@ -81,20 +81,23 @@ func (rw *routeWrapper) getGateway() net.IP {
 	return net.ParseIP(gateway)
 }
 
-func (rw *routeWrapper) addToStatus(hostname string, gateway net.IP) bool {
+func (rw *routeWrapper) addToStatus(hostname string, gateway net.IP, err error) bool {
 	// Update the status if necessary
 	for _, val := range rw.instance.Status.NodeStatus {
 		if val.Hostname == hostname {
 			return false
 		}
 	}
-
 	spec := rw.instance.Spec
 	spec.Gateway = gateway.String()
+	errorString := ""
+	if err != nil {
+		errorString = err.Error()
+	}
 	rw.instance.Status.NodeStatus = append(rw.instance.Status.NodeStatus, iksv1.StaticRouteNodeStatus{
 		Hostname: hostname,
 		State:    spec,
-		Error:    "",
+		Error:    errorString,
 	})
 	return true
 }
