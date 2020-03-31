@@ -87,6 +87,12 @@ Once you have made changes in the source, you have two option to run and test yo
   2. Run as a Go program on your local development environment
      - run `make dev-run-operator-local`
 
+## Functional verification tests
+The fvt tests are written is bash and you could find it under the `scripts` directory. It uses the [KinD](https://kind.sigs.k8s.io/docs/user/quick-start/) environment to setup a Kubernetes cluster and then it applies all the needed resources and starts the operator.
+  - run `make fvt` to execute the functional tests
+
+Please note, the fvt test currently does not check network connectivity, it only makes sure that the relevant and necessary routes are setup on the node (container). Travis also runs these tests.
+
 ## Setting Travis-CI
 If you want to test, build and publish your changes into your own personal repo after forking this project, you need to following variables set up in Travis instance associated to your github project:
   - DOCKER_IMAGE_NAME, this is the name of your docker image ie. myrepo/staticroute-operator

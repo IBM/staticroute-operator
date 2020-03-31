@@ -10,7 +10,7 @@ fvtlog() {
 }
 
 list_nodes() {
-  NODES=($(kubectl get nodes --selector "node-role.kubernetes.io/master notin ()" --no-headers -o jsonpath='{.items[*].metadata.name}'))
+  kubectl get nodes --selector "node-role.kubernetes.io/master notin ()" --no-headers -o jsonpath='{.items[*].metadata.name}'
 }
 
 # Function to check the CR status
@@ -19,9 +19,9 @@ list_nodes() {
 # - Node name (optional, needed when a CR applies only for a given node)
 check_staticroute_crd_status() {
   set +e
-  cr=$1
-  match_node="${2:-all}"
-  status_ok=false
+  local cr=$1
+  local match_node="${2:-all}"
+  local status_ok=false
   for _ in $(seq ${SLEEP_COUNT}); do
     if [[ "${match_node}" == "all" ]]; then
       cr_array=($(kubectl get staticroute "${cr}" --no-headers -o jsonpath='{.status.nodeStatus[*].hostname}'))
@@ -38,7 +38,7 @@ check_staticroute_crd_status() {
     fi
     sleep ${SLEEP_WAIT_SECONDS}
   done
-  if [[ $status_ok == "false" ]]; then
+  if [[ $status_ok == false ]]; then
     fvtlog "Failed to get the nodeStatus for the ${cr}. Are the operator pods running?"
     return 1
   fi
@@ -49,7 +49,7 @@ check_staticroute_crd_status() {
 # Function to check the staticroute-operator pods are all running
 check_operator_is_running() {
   set +e
-  reached_expected_count=false
+  local reached_expected_count=false
   for _ in $(seq ${SLEEP_COUNT}); do
     number_of_pods_not_running=$(kubectl get pods --selector name=staticroute-operator --no-headers | grep -vc Running)
     if [[ $number_of_pods_not_running -eq 0 ]]; then
@@ -70,14 +70,17 @@ check_operator_is_running() {
 # Parameters:
 # - CR name
 # - Node name (optional, needed when a CR applies only for a given node)
+# - Test type which is able to differentiate positive or negative tests
 check_route_in_container() {
-  route=$1
-  match_node="${2:-all}"
-  test_type="${3:-positive}"
+  local route=$1
+  local match_node="${2:-all}"
+  local test_type="${3:-positive}"
   for node in "${NODES[@]}"; do
     # Execute the command on all the nodes or only the given node
-    if [[ "${match_node}" == "all" ]] || 
-       [[ "${match_node}" == "${node}" ]]; then
+    if [[ "${match_node}" != "all" ]] || 
+       [[ "${match_node}" != "${node}" ]]; then
+       continue
+    else
       routes=$(docker exec "${node}" ip route)
       if [[ "${test_type}" == "positive" ]] &&
          [[ ${routes} == *${route}* ]]; then
@@ -90,8 +93,6 @@ check_route_in_container() {
         fvtlog "Routes on the node: ${routes}"
         return 3
       fi
-    else
-      continue
     fi
   done
 }
