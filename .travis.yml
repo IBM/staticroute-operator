@@ -33,7 +33,7 @@ script:
   - |
     export REGISTRY_URL=$(echo "${DOCKER_REGISTRY_LIST}" | tr ',' ' ' | cut -d' ' -f1)
     export REGISTRY_REPO=${REGISTRY_URL}/${DOCKER_IMAGE_NAME}
-    make build-operator || travis_terminate 1
+    make fvt || travis_terminate 1
   
 deploy:
   - provider: script

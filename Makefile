@@ -4,6 +4,8 @@ GO_PACKAGES=$(shell go list ./... | grep -v /tests/)
 GO_FILES=$(shell find . -type f -name '*.go' -not -path "./.git/*")
 GOLANGCI_LINT_EXISTS:=$(shell golangci-lint --version 2>/dev/null)
 GIT_COMMIT_SHA:=$(shell git rev-parse HEAD 2>/dev/null)
+SHFILES=$(shell find . -type f -name '*fvt*.sh')
+SHELLCHECK_EXISTS:=$(shell shellcheck --version 2>/dev/null)
 
 include Makefile.env
 
@@ -16,7 +18,9 @@ _deps-darwin:
 _deps-linux:
 	curl -sL https://github.com/operator-framework/operator-sdk/releases/download/v${OP_SDK_RELEASE_VERSION}/operator-sdk-v${OP_SDK_RELEASE_VERSION}-x86_64-linux-gnu > ${INSTALL_LOCATION}/operator-sdk
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ${INSTALL_LOCATION} v${GOLANGCI_LINT_VERSION}
-	chmod +x ${INSTALL_LOCATION}/operator-sdk
+	curl -sL https://github.com/kubernetes-sigs/kind/releases/download/v${KIND_VERSION}/kind-linux-amd64 > ${INSTALL_LOCATION}/kind
+	curl -sL https://storage.googleapis.com/kubernetes-release/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl > ${INSTALL_LOCATION}/kubectl
+	chmod +x ${INSTALL_LOCATION}/operator-sdk ${INSTALL_LOCATION}/kind ${INSTALL_LOCATION}/kubectl
 
 _calculate-build-number:
     $(eval export CONTAINER_VERSION?=$(GIT_COMMIT_SHA)-$(shell date "+%s"))
@@ -26,6 +30,13 @@ ifdef GOLANGCI_LINT_EXISTS
 	golangci-lint run --verbose --timeout 3m
 else
 	@echo "golangci-lint is not installed"
+endif
+
+lint-sh:
+ifdef SHELLCHECK_EXISTS
+	shellcheck ${SHFILES}
+else
+	@echo "shellcheck is not installed"
 endif
 
 formatcheck:
@@ -42,6 +53,10 @@ vet:
 
 test:
 	go test -race -timeout 60s -covermode=atomic -coverprofile=cover.out ${GO_PACKAGES}
+
+fvt: _calculate-build-number build-operator
+	docker tag $(REGISTRY_REPO) $(REGISTRY_REPO):$(CONTAINER_VERSION)
+	@scripts/run-fvt.sh
 
 validate-code: lint formatcheck vet test
 
