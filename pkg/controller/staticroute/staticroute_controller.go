@@ -31,11 +31,14 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
@@ -89,7 +92,55 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	}
 
 	// Watch for changes to primary resource StaticRoute
-	return c.Watch(&source.Kind{Type: &iksv1.StaticRoute{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &iksv1.StaticRoute{}}, &handler.EnqueueRequestForObject{})
+	if err != nil {
+		return err
+	}
+
+	// Watch if the self node labels are changed, so reconcile every route
+	err = c.Watch(
+		&source.Kind{Type: &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: r.(*ReconcileStaticRoute).options.Hostname}}},
+		&handler.EnqueueRequestsFromMapFunc{
+			ToRequests: handler.ToRequestsFunc(func(a handler.MapObject) []reconcile.Request {
+				routes := &iksv1.StaticRouteList{}
+				if err := r.(*ReconcileStaticRoute).client.List(context.Background(), routes); err != nil {
+					//TODO escalate the problem somehow
+					return nil
+				}
+
+				var result []reconcile.Request
+				for _, route := range routes.Items {
+					result = append(result, reconcile.Request{
+						NamespacedName: k8stypes.NamespacedName{
+							Name:      route.GetName(),
+							Namespace: "",
+						},
+					})
+				}
+				return result
+			}),
+		},
+		&predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool {
+				return false
+			},
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				if len(e.MetaNew.GetLabels()) != len(e.MetaOld.GetLabels()) {
+					return true
+				}
+				for k, v := range e.MetaOld.GetLabels() {
+					if e.MetaNew.GetLabels()[k] != v {
+						return true
+					}
+				}
+				return false
+			},
+			DeleteFunc: func(e event.DeleteEvent) bool {
+				return false
+			},
+		},
+	)
+	return err
 }
 
 // blank assignment to verify that ReconcileStaticRoute implements reconcile.Reconciler
