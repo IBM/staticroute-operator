@@ -51,10 +51,7 @@ import (
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -222,26 +219,7 @@ func mainImpl(params mainImplParams) {
 		panic("Missing environment variable: NODE_HOSTNAME")
 	}
 
-	// get the zone using the API, first get the matching Node
-	c := mgr.GetClient()
-
-	u := &unstructured.Unstructured{}
-	u.SetGroupVersionKind(schema.GroupVersionKind{
-		Kind:    "Node",
-		Version: "v1",
-	})
-	err = c.Get(context.Background(), client.ObjectKey{
-		Name: hostname,
-	}, u)
-	if err != nil {
-		panic(err)
-	}
-
-	labels := u.GetLabels()
-	zone := labels[staticroute.ZoneLabel]
-
 	params.logger.Info(fmt.Sprintf("Node Hostname: %s", hostname))
-	params.logger.Info(fmt.Sprintf("Node Zone: %s", zone))
 	params.logger.Info("Registering Components.")
 
 	clientset, err := params.newKubernetesConfig(cfg)
@@ -282,7 +260,6 @@ func mainImpl(params mainImplParams) {
 		// Start static route controller
 		if err := params.addStaticRouteController(mgr, staticroute.ManagerOptions{
 			Hostname:         hostname,
-			Zone:             zone,
 			Table:            table,
 			ProtectedSubnets: protectedSubnets,
 			RouteManager:     routeManager,

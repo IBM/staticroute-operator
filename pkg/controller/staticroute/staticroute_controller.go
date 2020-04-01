@@ -46,9 +46,6 @@ import (
 var (
 	//ZoneLabel Node hostname label to determine hostname
 	HostNameLabel = "kubernetes.io/hostname"
-
-	//ZoneLabel Kubernetes node label to determine node zone
-	ZoneLabel = "failure-domain.beta.kubernetes.io/zone"
 )
 
 var log = logf.Log.WithName("controller_staticroute")
@@ -57,7 +54,6 @@ var log = logf.Log.WithName("controller_staticroute")
 type ManagerOptions struct {
 	RouteManager     routemanager.RouteManager
 	Hostname         string
-	Zone             string
 	Table            int
 	ProtectedSubnets []*net.IPNet
 	RouteGet         func() (net.IP, error)
@@ -173,7 +169,6 @@ type reconcileImplParams struct {
 
 var (
 	crNotFound        = &reconcile.Result{}
-	notSameZone       = &reconcile.Result{}
 	nodeNotFound      = &reconcile.Result{}
 	overlapsProtected = &reconcile.Result{}
 	alreadyDeleted    = &reconcile.Result{}
@@ -214,12 +209,6 @@ func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 	}
 
 	rw := routeWrapper{instance: instance}
-
-	if !rw.isSameZone(params.options.Zone, ZoneLabel) {
-		// a zone is specified and the route is not for this zone, ignore
-		reqLogger.Info("Ignoring, zone does not match", "NodeZone", params.options.Zone, "CRZone", instance.GetLabels()[ZoneLabel])
-		return notSameZone, nil
-	}
 
 	if rw.isProtected(params.options.ProtectedSubnets) {
 		// a subnet overlaps some protected, ignore
