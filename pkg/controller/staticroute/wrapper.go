@@ -37,12 +37,6 @@ func (rw *routeWrapper) setFinalizer() bool {
 	return true
 }
 
-func (rw *routeWrapper) isSameZone(zone, label string) bool {
-	instanceZone := rw.instance.GetLabels()[label]
-
-	return instanceZone == "" || instanceZone == zone
-}
-
 func (rw *routeWrapper) isProtected(protecteds []*net.IPNet) bool {
 	_, subnetNet, err := net.ParseCIDR(rw.instance.Spec.Subnet)
 	if err != nil {

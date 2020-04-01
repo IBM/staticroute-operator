@@ -24,61 +24,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestIsSameZone(t *testing.T) {
-	var testData = []struct {
-		zone   string
-		route  *iksv1.StaticRoute
-		result bool
-	}{
-		{
-			"a",
-			&iksv1.StaticRoute{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{ZoneLabel: "a"},
-				},
-			},
-			true,
-		},
-		{
-			"a",
-			&iksv1.StaticRoute{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{ZoneLabel: ""},
-				},
-			},
-			true,
-		},
-		{
-			"",
-			&iksv1.StaticRoute{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{ZoneLabel: ""},
-				},
-			},
-			true,
-		},
-		{
-			"a",
-			&iksv1.StaticRoute{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: map[string]string{ZoneLabel: "b"},
-				},
-			},
-			false,
-		},
-	}
-
-	for i, td := range testData {
-		rw := routeWrapper{instance: td.route}
-
-		res := rw.isSameZone(td.zone, ZoneLabel)
-
-		if res != td.result {
-			t.Errorf("Result must be %t, it is %t at %d", td.result, res, i)
-		}
-	}
-}
-
 func TestIsProtected(t *testing.T) {
 	var testData = []struct {
 		protecteds []*net.IPNet

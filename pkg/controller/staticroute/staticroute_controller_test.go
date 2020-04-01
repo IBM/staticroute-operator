@@ -104,20 +104,6 @@ func TestReconcileImplCRGetNotFound(t *testing.T) {
 	}
 }
 
-func TestReconcileImplNotSameZone(t *testing.T) {
-	params, _ := getReconcileContextForAddFlow(nil, true)
-	params.options.Zone = "a"
-
-	res, err := reconcileImpl(*params)
-
-	if res != notSameZone {
-		t.Error("Result must be notSameZone")
-	}
-	if err != nil {
-		t.Errorf("Error must be nil: %s", err.Error())
-	}
-}
-
 func TestReconcileImplProtected(t *testing.T) {
 	params, _ := getReconcileContextForAddFlow(nil, true)
 	params.options.ProtectedSubnets = []*net.IPNet{&net.IPNet{IP: net.IP{10, 0, 0, 0}, Mask: net.IPv4Mask(0xff, 0, 0, 0)}}
@@ -470,7 +456,6 @@ func getReconcileContextForAddFlow(route *iksv1.StaticRoute, isRegistered bool) 
 		client: newFakeClient(route),
 	}
 	params := newReconcileImplParams(&mockClient)
-	params.options.Zone = "zone"
 	params.options.Hostname = "hostname"
 	params.options.RouteManager = routeManagerMock{
 		isRegistered: isRegistered,
