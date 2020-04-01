@@ -99,6 +99,16 @@ func (rw *routeWrapper) addToStatus(hostname string, gateway net.IP) bool {
 	return true
 }
 
+func (rw *routeWrapper) alreadyInStatus(hostname string) bool {
+	for _, val := range rw.instance.Status.NodeStatus {
+		if val.Hostname == hostname {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (rw *routeWrapper) removeFromStatus(hostname string) (existed bool) {
 	// Update the status if necessary
 	statusArr := []iksv1.StaticRouteNodeStatus{}

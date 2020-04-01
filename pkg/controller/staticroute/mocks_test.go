@@ -141,7 +141,6 @@ func newStaticRouteWithValues(withSpec, withStatus bool) *iksv1.StaticRoute {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "CR",
 			Namespace: "default",
-			Labels:    map[string]string{ZoneLabel: "zone"},
 		},
 	}
 	if withSpec {

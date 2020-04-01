@@ -103,6 +103,12 @@ check_route_in_container "192.168.1.0/24 via 172.17.0.3"
 fvtlog "Test example-staticroute-with-selector - Check that only worker2 has applied the route to 192.168.2.0/24"
 check_route_in_container "192.168.2.0/24 via 172.17.0.1" "${KIND_CLUSTER_NAME}-worker" "negative"
 check_route_in_container "192.168.2.0/24 via 172.17.0.1" "${KIND_CLUSTER_NAME}-worker2"
+fvtlog "Test selected label is changed - worker2 has to remove it's route"
+kubectl label node ${KIND_CLUSTER_NAME}-worker2 kubernetes.io/hostname=temp --overwrite=true
+check_route_in_container "192.168.2.0/24 via 172.17.0.1" "${KIND_CLUSTER_NAME}-worker2" "negative"
+fvtlog "And then apply back the label - worker2 has to restore it's route"
+kubectl label node ${KIND_CLUSTER_NAME}-worker2 kubernetes.io/hostname=${KIND_CLUSTER_NAME}-worker2 --overwrite=true
+check_route_in_container "192.168.2.0/24 via 172.17.0.1" "${KIND_CLUSTER_NAME}-worker2"
 
 fvtlog "Test staticroute deletion"
 kubectl delete staticroute example-staticroute-simple

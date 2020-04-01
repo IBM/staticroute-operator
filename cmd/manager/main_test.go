@@ -33,7 +33,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
@@ -208,29 +207,6 @@ func TestMainImplHostnameMissing(t *testing.T) {
 	defer validateRecovery(t, "Missing environment variable: NODE_HOSTNAME")()
 	params, _ := getContextForHappyFlow()
 	params.getEnv = getEnvMock("", "", "", "")
-
-	mainImpl(*params)
-
-	t.Error("Error didn't appear")
-}
-
-func TestMainImplNodeGetFails(t *testing.T) {
-	defer func() {
-		if r := recover(); r != nil {
-			switch rt := r.(type) {
-			case error:
-				if rt.Error() != "nodes \"hostname\" not found" {
-					t.Errorf("Error not match, current %v", rt)
-				}
-			default:
-				t.Errorf("Wrong error did appear: %v", r)
-			}
-		}
-	}()
-	params, _ := getContextForHappyFlow()
-	params.newManager = func(*rest.Config, manager.Options) (manager.Manager, error) {
-		return mockManager{client: fake.NewFakeClient()}, nil
-	}
 
 	mainImpl(*params)
 
