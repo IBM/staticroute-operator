@@ -77,10 +77,8 @@ check_route_in_container() {
   local test_type="${3:-positive}"
   for node in "${NODES[@]}"; do
     # Execute the command on all the nodes or only the given node
-    if [[ "${match_node}" != "all" ]] || 
-       [[ "${match_node}" != "${node}" ]]; then
-       continue
-    else
+    if [[ "${match_node}" == "all" ]] || 
+       [[ "${match_node}" == "${node}" ]]; then
       routes=$(docker exec "${node}" ip route)
       if [[ "${test_type}" == "positive" ]] &&
          [[ ${routes} == *${route}* ]]; then

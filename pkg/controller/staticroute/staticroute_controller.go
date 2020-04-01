@@ -222,9 +222,23 @@ func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 		return res, err
 	}
 
+	selectorNoLongerMatches := false
+	if len(rw.instance.Spec.Selectors) > 0 {
+		reqLogger.Info("Node selector found", "Selector", rw.instance.Spec.Selectors)
+		if res, err := validateNodeBySelector(params, &rw, reqLogger); res != nil {
+			if res != nodeNotFound || !rw.alreadyInStatus(params.options.Hostname) {
+				return res, err
+			}
+			reqLogger.Info("Node labels likely changed and no longer applies to this CR")
+			selectorNoLongerMatches = true
+		}
+	}
+
 	isChanged := rw.isChanged(params.options.Hostname, gateway.String(), rw.instance.Spec.Selectors)
 	reqLogger.Info("The resource is", "changed", isChanged)
-	if instance.GetDeletionTimestamp() != nil || isChanged {
+	if instance.GetDeletionTimestamp() != nil ||
+		isChanged ||
+		selectorNoLongerMatches {
 		if !rw.removeFromStatus(params.options.Hostname) {
 			return alreadyDeleted, nil
 		}
@@ -234,13 +248,6 @@ func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 			return updateFinished, err
 		}
 		return res, err
-	}
-
-	if len(rw.instance.Spec.Selectors) > 0 {
-		reqLogger.Info("Node selector found", "Selector", rw.instance.Spec.Selectors)
-		if res, err := validateNodeBySelector(params, &rw, reqLogger); res != nil {
-			return res, err
-		}
 	}
 
 	return addOperation(params, &rw, gateway, params.options.Table, reqLogger)
