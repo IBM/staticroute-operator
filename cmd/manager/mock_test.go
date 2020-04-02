@@ -54,6 +54,12 @@ func getEnvMock(metricsNS, nodeHostName, targetTable, protectedSubnets string) f
 	}
 }
 
+func osEnvMock(envvars []string) func() []string {
+	return func() []string {
+		return envvars
+	}
+}
+
 func newFakeClient() client.Client {
 	s := runtime.NewScheme()
 	route := &iksv1.StaticRoute{}

@@ -100,6 +100,7 @@ func main() {
 	mainImpl(mainImplParams{
 		logger:                log,
 		getEnv:                os.Getenv,
+		osEnv:                 os.Environ,
 		getConfig:             config.GetConfig,
 		newManager:            manager.New,
 		addToScheme:           apis.AddToScheme,
@@ -139,6 +140,7 @@ func parseCommandLine() {
 type mainImplParams struct {
 	logger                   types.Logger
 	getEnv                   func(string) string
+	osEnv                    func() []string
 	getConfig                func() (*rest.Config, error)
 	newManager               func(*rest.Config, manager.Options) (manager.Manager, error)
 	addToScheme              func(s *kRuntime.Scheme) error
@@ -239,10 +241,7 @@ func mainImpl(params mainImplParams) {
 	}
 	params.logger.Info("Table selected", "value", table)
 
-	var protectedSubnets []*net.IPNet
-	if subnetsEnv := params.getEnv("PROTECTED_SUBNETS"); subnetsEnv != "" {
-		protectedSubnets = parseProtectedSubnets(subnetsEnv)
-	}
+	protectedSubnets := collectProtectedSubnets(params.osEnv())
 
 	crdFound := false
 	for _, resource := range resources.APIResources {
@@ -298,14 +297,16 @@ func parseTargetTable(targetTableEnv string) int {
 	}
 }
 
-func parseProtectedSubnets(subnetsEnv string) []*net.IPNet {
+func collectProtectedSubnets(envVars []string) []*net.IPNet {
 	protectedSubnets := []*net.IPNet{}
-	for _, subnet := range strings.Split(subnetsEnv, ",") {
-		_, subnetNet, err := net.ParseCIDR(strings.Trim(subnet, " "))
-		if err != nil {
-			panic(err)
+	for _, e := range envVars {
+		if v := strings.SplitN(e, "=", 2); strings.Contains(v[0], "PROTECTED_SUBNET_") {
+			_, subnetNet, err := net.ParseCIDR(strings.Trim(v[1], " "))
+			if err != nil {
+				panic(err)
+			}
+			protectedSubnets = append(protectedSubnets, subnetNet)
 		}
-		protectedSubnets = append(protectedSubnets, subnetNet)
 	}
 	return protectedSubnets
 }
