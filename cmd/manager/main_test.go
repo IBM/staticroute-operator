@@ -147,7 +147,13 @@ func TestMainImplProtectedSubnetsOk(t *testing.T) {
 	var actualSubnets []*net.IPNet
 	defer catchError(t)()
 	params, _ := getContextForHappyFlow()
-	params.getEnv = getEnvMock("", "hostname", "", " 10.0.0.0/8 , 192.168.0.0/24 ")
+	params.osEnv = osEnvMock([]string{
+		"METRICS_NS=",
+		"NODE_HOSTNAME=",
+		"PROTECTED_SUBNET_CALICO=10.0.0.0/8",
+		"PROTECTED_SUBNET_HOST=192.168.0.0/24",
+		"TARGET_TABLE=",
+	})
 	params.addStaticRouteController = func(mgr manager.Manager, options staticroute.ManagerOptions) error {
 		actualSubnets = options.ProtectedSubnets
 		return nil
@@ -244,9 +250,11 @@ func TestMainImplTargetTableGreater(t *testing.T) {
 }
 
 func TestMainImplProtectedSubnetsInvalid(t *testing.T) {
-	defer validateRecovery(t, "invalid CIDR address: 10.0.0.0/8 ; 192.168.0.0/24")()
+	defer validateRecovery(t, "invalid CIDR address: 987.654.321.012")()
 	params, _ := getContextForHappyFlow()
-	params.getEnv = getEnvMock("", "hostname", "", " 10.0.0.0/8 ; 192.168.0.0/24 ")
+	params.osEnv = osEnvMock([]string{
+		"PROTECTED_SUBNET_MYNET=987.654.321.012",
+	})
 
 	mainImpl(*params)
 
@@ -336,6 +344,7 @@ func getContextForHappyFlow() (*mainImplParams, *mockCallbacks) {
 	return &mainImplParams{
 		logger: mockLogger{},
 		getEnv: getEnvMock("", "hostname", "", ""),
+		osEnv:  osEnvMock([]string{}),
 		getConfig: func() (*rest.Config, error) {
 			callbacks.getConfigCalled = true
 			return nil, nil
