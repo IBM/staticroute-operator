@@ -150,7 +150,7 @@ func TestMainImplProtectedSubnetsOk(t *testing.T) {
 	params.osEnv = osEnvMock([]string{
 		"METRICS_NS=",
 		"NODE_HOSTNAME=",
-		"PROTECTED_SUBNET_CALICO=10.0.0.0/8",
+		"PROTECTED_SUBNET_CALICO=10.0.0.0/8,20.0.0.0/8",
 		"PROTECTED_SUBNET_HOST=192.168.0.0/24",
 		"TARGET_TABLE=",
 	})
@@ -163,6 +163,7 @@ func TestMainImplProtectedSubnetsOk(t *testing.T) {
 
 	expectedSubnets := []*net.IPNet{
 		&net.IPNet{IP: net.IP{10, 0, 0, 0}, Mask: net.IPv4Mask(0xff, 0, 0, 0)},
+		&net.IPNet{IP: net.IP{20, 0, 0, 0}, Mask: net.IPv4Mask(0xff, 0, 0, 0)},
 		&net.IPNet{IP: net.IP{192, 168, 0, 0}, Mask: net.IPv4Mask(0xff, 0xff, 0xff, 0)},
 	}
 	if fmt.Sprintf("%v", expectedSubnets) != fmt.Sprintf("%v", actualSubnets) {
