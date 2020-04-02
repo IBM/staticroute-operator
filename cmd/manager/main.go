@@ -301,11 +301,13 @@ func collectProtectedSubnets(envVars []string) []*net.IPNet {
 	protectedSubnets := []*net.IPNet{}
 	for _, e := range envVars {
 		if v := strings.SplitN(e, "=", 2); strings.Contains(v[0], "PROTECTED_SUBNET_") {
-			_, subnetNet, err := net.ParseCIDR(strings.Trim(v[1], " "))
-			if err != nil {
-				panic(err)
+			for _, subnet := range strings.Split(v[1], ",") {
+				_, subnetNet, err := net.ParseCIDR(strings.Trim(subnet, " "))
+				if err != nil {
+					panic(err)
+				}
+				protectedSubnets = append(protectedSubnets, subnetNet)
 			}
-			protectedSubnets = append(protectedSubnets, subnetNet)
 		}
 	}
 	return protectedSubnets
