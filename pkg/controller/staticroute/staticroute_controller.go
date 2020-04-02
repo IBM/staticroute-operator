@@ -100,7 +100,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 			ToRequests: handler.ToRequestsFunc(func(a handler.MapObject) []reconcile.Request {
 				routes := &iksv1.StaticRouteList{}
 				if err := r.(*ReconcileStaticRoute).client.List(context.Background(), routes); err != nil {
-					//TODO escalate the problem somehow
+					log.Error(err, "Failed to List StaticRoute CRs")
 					return nil
 				}
 
@@ -122,10 +122,12 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 			},
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				if len(e.MetaNew.GetLabels()) != len(e.MetaOld.GetLabels()) {
+					log.Info("Node label amount changed. Submitting all StaticRoute CRs for reconciliation.")
 					return true
 				}
 				for k, v := range e.MetaOld.GetLabels() {
 					if e.MetaNew.GetLabels()[k] != v {
+						log.Info("Node labels are changed. Submitting all StaticRoute CRs for reconciliation.")
 						return true
 					}
 				}
