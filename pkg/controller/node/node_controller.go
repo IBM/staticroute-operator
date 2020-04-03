@@ -25,9 +25,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
@@ -54,7 +56,19 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	}
 
 	// Watch for changes to primary resource Node
-	return c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{})
+	return c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{},
+		&predicate.Funcs{
+			CreateFunc: func(e event.CreateEvent) bool {
+				return false
+			},
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				return false
+			},
+			DeleteFunc: func(e event.DeleteEvent) bool {
+				return true
+			},
+		},
+	)
 }
 
 // blank assignment to verify that ReconcileNode implements reconcile.Reconciler
