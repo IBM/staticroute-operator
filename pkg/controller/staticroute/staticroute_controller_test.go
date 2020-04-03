@@ -17,6 +17,7 @@
 package staticroute
 
 import (
+	"context"
 	"errors"
 	"net"
 	"testing"
@@ -27,6 +28,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -196,6 +198,56 @@ func TestReconcileImplNodeSelectorInvalid(t *testing.T) {
 	}
 	if err != nil {
 		t.Errorf("Error must be nil: %s", err.Error())
+	}
+}
+
+func TestReoncileImplUpdateStatus(t *testing.T) {
+	// Initialization
+	route := newStaticRouteWithValues(true, false)
+	params, mockClient := getReconcileContextForAddFlow(route, true)
+	params.options.RouteManager = routeManagerMock{
+		registerRouteErr: errors.New("Couldn't register route"),
+	}
+
+	instance := &iksv1.StaticRoute{}
+	instanceID := &types.NamespacedName{
+		Name:      route.ObjectMeta.Name,
+		Namespace: route.ObjectMeta.Namespace,
+	}
+
+	// Part 1 - route creation fails on purpose, error is set
+	res, err := reconcileImpl(*params)
+	if res != registerRouteError {
+		t.Error("Result must be registerRouteError")
+	}
+	if err == nil {
+		t.Error("Error must be not nil")
+	}
+	err = mockClient.Get(context.Background(), *instanceID, instance)
+	if err != nil {
+		t.Errorf("Failed to read the CR: %s", err.Error())
+	}
+	if instance.Status.NodeStatus[0].Error != "Couldn't register route" {
+		t.Errorf("Error message must be: Couldn't register route: %s", instance.Status.NodeStatus[0].Error)
+	}
+
+	// Part 2 - route creation succeeds, error is cleared
+	params.options.RouteManager = routeManagerMock{
+		isRegistered: true,
+	}
+	res, err = reconcileImpl(*params)
+	if res != finished {
+		t.Error("Result must be finished")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+	err = mockClient.Get(context.Background(), *instanceID, instance)
+	if err != nil {
+		t.Errorf("Failed to read the CR: %s", err.Error())
+	}
+	if instance.Status.NodeStatus[0].Error != "" {
+		t.Errorf("Error message must be empty %s", instance.Status.NodeStatus[0].Error)
 	}
 }
 

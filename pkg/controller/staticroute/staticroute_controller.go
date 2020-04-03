@@ -44,7 +44,7 @@ import (
 )
 
 var (
-	//ZoneLabel Node hostname label to determine hostname
+	//HostNameLabel label to determine hostname
 	HostNameLabel = "kubernetes.io/hostname"
 )
 
@@ -192,13 +192,17 @@ var (
 	addStatusUpdateError = &reconcile.Result{}
 )
 
-func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
+func reconcileImpl(params reconcileImplParams) (res *reconcile.Result, err error) {
 	reqLogger := log.WithValues("Node", params.options.Hostname, "Request.Name", params.request.Name)
 	reqLogger.Info("Reconciling StaticRoute")
 
+	// Default 0.0.0.0 is set to fulfill the CRD requirements
+	gateway := net.IP{0, 0, 0, 0}
+	reportStatus := true
+
 	// Fetch the StaticRoute instance
 	instance := &iksv1.StaticRoute{}
-	if err := params.client.Get(context.Background(), params.request.NamespacedName, instance); err != nil {
+	if err = params.client.Get(context.Background(), params.request.NamespacedName, instance); err != nil {
 		if kerrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
@@ -212,24 +216,51 @@ func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 
 	rw := routeWrapper{instance: instance}
 
+	defer func() {
+		if !reportStatus {
+			return
+		}
+		// special error handling is needed in the following case
+		var serr error
+		if res == overlapsProtected {
+			serr = errors.New("Given subnet overlaps with some protected subnet")
+		} else {
+			serr = err
+		}
+		_ = rw.removeFromStatus(params.options.Hostname)
+		if rw.addToStatus(params.options.Hostname, gateway, serr) {
+			reqLogger.Info("Update the StaticRoute status", "staticroute", rw.instance.Status)
+			if cerr := params.client.Status().Update(context.Background(), rw.instance); cerr != nil {
+				reqLogger.Error(err, "failed to update the staticroute")
+				res = addStatusUpdateError
+				err = cerr
+			}
+		}
+	}()
+
+	// Check if the staticroute overlaps with some protected subnets
 	if rw.isProtected(params.options.ProtectedSubnets) {
-		// a subnet overlaps some protected, ignore
-		reqLogger.Info("Ignoring, subnet overlaps some protected", "Subnet", rw.instance.Spec.Subnet)
-		return overlapsProtected, nil
+		// a subnet overlaps some protected, ignore, but set error in nodeStatus
+		reqLogger.Info("Error: subnet overlaps some protected", "Subnet", rw.instance.Spec.Subnet)
+		res = overlapsProtected
+		return
 	}
 
 	// If "gateway" is empty, we'll create the route through the default private network gateway
-	res, gateway, err := selectGateway(params, rw, reqLogger)
+	res, gateway, err = selectGateway(params, rw, reqLogger)
 	if gateway == nil {
-		return res, err
+		return
 	}
 
 	selectorNoLongerMatches := false
 	if len(rw.instance.Spec.Selectors) > 0 {
 		reqLogger.Info("Node selector found", "Selector", rw.instance.Spec.Selectors)
-		if res, err := validateNodeBySelector(params, &rw, reqLogger); res != nil {
+		if res, err = validateNodeBySelector(params, &rw, reqLogger); res != nil {
+			if res == nodeNotFound {
+				reportStatus = false
+			}
 			if res != nodeNotFound || !rw.alreadyInStatus(params.options.Hostname) {
-				return res, err
+				return
 			}
 			reqLogger.Info("Node labels likely changed and no longer applies to this CR")
 			selectorNoLongerMatches = true
@@ -241,15 +272,16 @@ func reconcileImpl(params reconcileImplParams) (*reconcile.Result, error) {
 	if instance.GetDeletionTimestamp() != nil ||
 		isChanged ||
 		selectorNoLongerMatches {
+		reportStatus = false
 		if !rw.removeFromStatus(params.options.Hostname) {
 			return alreadyDeleted, nil
 		}
-		res, err := deleteOperation(params, &rw, reqLogger)
+		res, err = deleteOperation(params, &rw, reqLogger)
 
 		if isChanged {
 			return updateFinished, err
 		}
-		return res, err
+		return
 	}
 
 	return addOperation(params, &rw, gateway, params.options.Table, reqLogger)
@@ -307,7 +339,6 @@ func validateNodeBySelector(params reconcileImplParams, rw *routeWrapper, logger
 }
 
 func deleteOperation(params reconcileImplParams, rw *routeWrapper, logger types.Logger) (*reconcile.Result, error) {
-	// Here comes the DELETE logic
 	logger.Info("Deregistering route")
 	err := params.options.RouteManager.DeRegisterRoute(params.request.Name)
 	if err != nil && err != routemanager.ErrNotFound {
@@ -342,13 +373,11 @@ func addOperation(params reconcileImplParams, rw *routeWrapper, gateway net.IP, 
 			return setFinalizerError, err
 		}
 	}
-
 	if !params.options.RouteManager.IsRegistered(params.request.Name) {
 		/*  Here comes the ADD logic
 		    This also runs if the CR was asked for deletion, but the operator did not run meanwhile.
 			In this case the route is still programmed to the kernel, so we register the route here
 			in order to successfully deregister and remove it from the kernel below */
-
 		_, ipnet, err := net.ParseCIDR(rw.instance.Spec.Subnet)
 		if err != nil {
 			logger.Error(err, "Unable to convert the subnet into IP range and mask")
@@ -362,17 +391,6 @@ func addOperation(params reconcileImplParams, rw *routeWrapper, gateway net.IP, 
 			return registerRouteError, err
 		}
 	}
-
-	// Delay status update until this point, so it will not be executed if CR delete is ongoing
-	if rw.addToStatus(params.options.Hostname, gateway) {
-		logger.Info("Update the StaticRoute status", "staticroute", rw.instance.Status)
-		if err := params.client.Status().Update(context.Background(), rw.instance); err != nil {
-			logger.Error(err, "failed to update the staticroute")
-			return addStatusUpdateError, err
-		}
-	}
-
-	logger.Info("Reconciliation done, no add, no delete.")
 	return finished, nil
 }
 

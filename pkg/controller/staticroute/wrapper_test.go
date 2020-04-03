@@ -17,6 +17,7 @@
 package staticroute
 
 import (
+	"errors"
 	"net"
 	"testing"
 
@@ -338,7 +339,7 @@ func TestRouteWrapperAddToStatus(t *testing.T) {
 	route := newStaticRouteWithValues(false, false)
 	rw := routeWrapper{instance: route}
 
-	added := rw.addToStatus("hostname", net.IP{10, 0, 0, 1})
+	added := rw.addToStatus("hostname", net.IP{10, 0, 0, 1}, errors.New("failure"))
 
 	if !added {
 		t.Error("Status must be added")
@@ -348,6 +349,8 @@ func TestRouteWrapperAddToStatus(t *testing.T) {
 		t.Errorf("First status must be `hostname`: %s", route.Status.NodeStatus[0].Hostname)
 	} else if route.Status.NodeStatus[0].State.Gateway != "10.0.0.1" {
 		t.Errorf("First status gateway must be `10.0.0.1`: %s", route.Status.NodeStatus[0].State.Gateway)
+	} else if route.Status.NodeStatus[0].Error != "failure" {
+		t.Errorf("Error field in status shall be filled with the string `failure`: %s", route.Status.NodeStatus[0].Error)
 	}
 }
 
@@ -362,7 +365,7 @@ func TestRouteWrapperAddToStatusNotAdded(t *testing.T) {
 	}
 	rw := routeWrapper{instance: route}
 
-	added := rw.addToStatus("hostname", net.IP{10, 0, 0, 1})
+	added := rw.addToStatus("hostname", net.IP{10, 0, 0, 1}, nil)
 
 	if added {
 		t.Error("Status must be not added")
