@@ -107,15 +107,32 @@ fvtlog "Test example-staticroute-with-selector - Check that only worker2 has app
 check_route_in_container "192.168.2.0/24 via 172.17.0.1" "${NODES[0]}" "negative"
 check_route_in_container "192.168.2.0/24 via 172.17.0.1" "${NODES[1]}"
 
-fvtlog "Test selected label is changed - worker2 has to remove its route"
+fvtlog "Test selected label is changed - "${NODES[1]}" has to remove its route"
 kubectl label node "${NODES[1]}" kubernetes.io/hostname=temp --overwrite=true
 check_staticroute_crd_status "example-staticroute-with-selector" "nodes_shall_not_post_status"
 check_route_in_container "192.168.2.0/24 via 172.17.0.1" "${NODES[1]}" "negative"
 
-fvtlog "And then apply back the label - worker2 has to restore its route"
+fvtlog "And then apply back the label - "${NODES[1]}" has to restore its route"
 kubectl label node "${NODES[1]}" kubernetes.io/hostname="${NODES[1]}" --overwrite=true
 check_staticroute_crd_status "example-staticroute-with-selector" "${NODES[1]}"
 check_route_in_container "192.168.2.0/24 via 172.17.0.1" "${NODES[1]}"
+
+fvtlog "Test node failure. Other node shall cleanup the status on behalf of the failed node"
+DELETED_NODE_MANIFEST="$(kubectl get no "${NODES[1]}" -o yaml)"
+DELETED_NODE_NAME="${NODES[1]}"
+docker pause "${NODES[1]}"
+kubectl delete no "${NODES[1]}"
+NODES=($(list_nodes))
+check_staticroute_crd_status "example-staticroute-simple"
+check_staticroute_crd_status "example-staticroute-with-gateway"
+check_staticroute_crd_status "example-staticroute-with-selector" "nodes_shall_not_post_status"
+fvtlog "Restore failed node. It shall catch up again with the routes"
+echo "${DELETED_NODE_MANIFEST}" | kubectl apply -f -
+docker unpause "${DELETED_NODE_NAME}"
+NODES=($(list_nodes))
+check_staticroute_crd_status "example-staticroute-simple"
+check_staticroute_crd_status "example-staticroute-with-gateway"
+check_staticroute_crd_status "example-staticroute-with-selector" "${NODES[1]}"
 
 fvtlog "Test staticroute deletion - routes must be deleted"
 kubectl delete staticroute example-staticroute-simple
