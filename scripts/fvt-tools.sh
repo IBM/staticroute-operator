@@ -31,6 +31,14 @@ check_staticroute_crd_status() {
         status_ok=true
         break
       fi
+    elif [[ "${match_node}" == "nodes_shall_not_post_status" ]]; then
+      node_status=$(kubectl get staticroute "${cr}" --no-headers -o jsonpath='{.status.nodeStatus[*]}')
+      cr_exists=$?
+      if [[ "${cr_exists}" == 0 ]] &&
+        [[ "${node_status}" == "" ]]; then
+        status_ok=true
+        break
+      fi
     else
       node_exists=$(kubectl get staticroute "${cr}" --no-headers -o jsonpath='{.status.nodeStatus[*].hostname}' | grep -c "${match_node}")
       if [[ "${node_exists}" == 1 ]]; then
@@ -41,15 +49,6 @@ check_staticroute_crd_status() {
     sleep ${SLEEP_WAIT_SECONDS}
   done
 
-  # So far, the script was waiting the wait loop, do one more check for the resource
-  if [[ "${match_node}" == "nodes_shall_not_post_status" ]]; then
-    node_status=$(kubectl get staticroute "${cr}" --no-headers -o jsonpath='{.status.nodeStatus[*]}')
-    cr_exists=$?
-    if [[ "${cr_exists}" == 0 ]] &&
-       [[ "${node_status}" == "" ]]; then
-      status_ok=true
-    fi
-  fi
   # Get all the error fields and word by word put to an array
   local error_array=($(kubectl get staticroute "${cr}" --no-headers -o jsonpath='{.status.nodeStatus[*].error}'))
   if [[ "${error_string}" != "" ]]; then
