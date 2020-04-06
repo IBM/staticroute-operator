@@ -500,6 +500,24 @@ func TestReconcileImplDetermineGateway(t *testing.T) {
 	}
 }
 
+func TestReconcileImplGatewayNotDirectlyRoutable(t *testing.T) {
+	route := newStaticRouteWithValues(true, true)
+	route.Spec.Gateway = "10.0.10.1"
+	params, _ := getReconcileContextForAddFlow(route, true)
+	params.options.GetGw = func(net.IP) (net.IP, error) {
+		return net.IP{10, 0, 0, 1}, nil
+	}
+
+	res, err := reconcileImpl(*params)
+
+	if res != gatewayNotDirectlyRoutableError {
+		t.Error("Result must be gatewayNotDirectlyRoutableError")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+}
+
 func getReconcileContextForAddFlow(route *iksv1.StaticRoute, isRegistered bool) (*reconcileImplParams, *reconcileImplClientMock) {
 	if route == nil {
 		route = newStaticRouteWithValues(true, true)
@@ -511,6 +529,9 @@ func getReconcileContextForAddFlow(route *iksv1.StaticRoute, isRegistered bool) 
 	params.options.Hostname = "hostname"
 	params.options.RouteManager = routeManagerMock{
 		isRegistered: isRegistered,
+	}
+	params.options.GetGw = func(net.IP) (net.IP, error) {
+		return nil, nil
 	}
 
 	return params, &mockClient

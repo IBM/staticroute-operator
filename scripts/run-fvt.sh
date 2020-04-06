@@ -152,7 +152,7 @@ spec:
   subnet: "192.168.0.0/24"
   gateway: "172.18.0.1"
 EOF
-check_staticroute_crd_status "example-staticroute-with-wrong-gateway" "all_nodes_shall_post_status" "network is unreachable"
+check_staticroute_crd_status "example-staticroute-with-wrong-gateway" "all_nodes_shall_post_status" "Gateway IP is not directly routable, next hop detected"
 check_route_in_container "192.168.0.0/24 via 172.18.0.1" "all" "negative"
 kubectl delete staticroute example-staticroute-with-wrong-gateway
 
@@ -190,7 +190,7 @@ metadata:
   name: example-staticroute-no-match
 spec:
   subnet: "192.168.0.0/24"
-  gateway: "172.18.0.1"
+  gateway: "172.17.0.3"
   selectors:
     -
       key: "failure-domain.beta.kubernetes.io/zone"
@@ -199,7 +199,7 @@ spec:
         - zone02
 EOF
 check_staticroute_crd_status "example-staticroute-no-match" "nodes_shall_not_post_status"
-check_route_in_container "192.168.0.0/24 via 172.18.0.1" "all" "negative"
+check_route_in_container "192.168.0.0/24 via 172.17.0.3" "all" "negative"
 kubectl delete staticroute example-staticroute-no-match
 
 fvtlog "All tests passed!"

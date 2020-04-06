@@ -178,18 +178,19 @@ var (
 	updateFinished    = &reconcile.Result{Requeue: true}
 	finished          = &reconcile.Result{}
 
-	crGetError           = &reconcile.Result{}
-	wrongSelectorErr     = &reconcile.Result{}
-	nodeGetError         = &reconcile.Result{}
-	deRegisterError      = &reconcile.Result{}
-	delStatusUpdateError = &reconcile.Result{}
-	emptyFinalizerError  = &reconcile.Result{}
-	setFinalizerError    = &reconcile.Result{}
-	invalidGatewayError  = &reconcile.Result{}
-	routeGetError        = &reconcile.Result{}
-	parseSubnetError     = &reconcile.Result{}
-	registerRouteError   = &reconcile.Result{}
-	addStatusUpdateError = &reconcile.Result{}
+	crGetError                      = &reconcile.Result{}
+	wrongSelectorErr                = &reconcile.Result{}
+	nodeGetError                    = &reconcile.Result{}
+	deRegisterError                 = &reconcile.Result{}
+	delStatusUpdateError            = &reconcile.Result{}
+	emptyFinalizerError             = &reconcile.Result{}
+	setFinalizerError               = &reconcile.Result{}
+	invalidGatewayError             = &reconcile.Result{}
+	gatewayNotDirectlyRoutableError = &reconcile.Result{}
+	routeGetError                   = &reconcile.Result{}
+	parseSubnetError                = &reconcile.Result{}
+	registerRouteError              = &reconcile.Result{}
+	addStatusUpdateError            = &reconcile.Result{}
 )
 
 func reconcileImpl(params reconcileImplParams) (res *reconcile.Result, err error) {
@@ -222,9 +223,12 @@ func reconcileImpl(params reconcileImplParams) (res *reconcile.Result, err error
 		}
 		// special error handling is needed in the following case
 		var serr error
-		if res == overlapsProtected {
+		switch res {
+		case overlapsProtected:
 			serr = errors.New("Given subnet overlaps with some protected subnet")
-		} else {
+		case gatewayNotDirectlyRoutableError:
+			serr = errors.New("Gateway IP is not directly routable, next hop detected")
+		default:
 			serr = err
 		}
 		_ = rw.removeFromStatus(params.options.Hostname)
@@ -248,7 +252,7 @@ func reconcileImpl(params reconcileImplParams) (res *reconcile.Result, err error
 
 	// If "gateway" is empty, we'll create the route through the default private network gateway
 	res, gateway, err = selectGateway(params, rw, reqLogger)
-	if gateway == nil {
+	if gateway == nil || res == gatewayNotDirectlyRoutableError {
 		return
 	}
 
@@ -293,7 +297,17 @@ func selectGateway(params reconcileImplParams, rw routeWrapper, logger types.Log
 		logger.Error(errors.New("Invalid gateway found in Spec"), rw.instance.Spec.Gateway)
 		return invalidGatewayError, nil, nil
 	}
-	if gateway == nil {
+	if gateway != nil {
+		extraGw, err := params.options.GetGw(gateway)
+		if err != nil {
+			logger.Error(err, "")
+			return routeGetError, nil, err
+		}
+		if extraGw != nil {
+			logger.Error(errors.New("Gateway IP is not directly routable. Next hop detected: "), extraGw.String())
+			return gatewayNotDirectlyRoutableError, gateway, nil
+		}
+	} else {
 		defaultGateway, err := params.options.GetGw(net.IP{10, 0, 0, 1})
 		if err != nil {
 			logger.Error(err, "")
