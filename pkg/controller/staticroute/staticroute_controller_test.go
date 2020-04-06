@@ -461,7 +461,7 @@ func TestReconcileImplCantDetermineGateway(t *testing.T) {
 	route := newStaticRouteWithValues(true, true)
 	route.Spec.Gateway = ""
 	params, _ := getReconcileContextForAddFlow(route, true)
-	params.options.RouteGet = func() (net.IP, error) {
+	params.options.GetGw = func(net.IP) (net.IP, error) {
 		return nil, errors.New("Can't determine gateway")
 	}
 
@@ -481,7 +481,7 @@ func TestReconcileImplDetermineGateway(t *testing.T) {
 	route := newStaticRouteWithValues(true, true)
 	route.Spec.Gateway = ""
 	params, _ := getReconcileContextForAddFlow(route, false)
-	params.options.RouteGet = func() (net.IP, error) {
+	params.options.GetGw = func(net.IP) (net.IP, error) {
 		return net.IP{10, 0, 0, 1}, nil
 	}
 	params.options.RouteManager = routeManagerMock{

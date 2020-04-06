@@ -114,8 +114,8 @@ func main() {
 		newRouterManager:         routemanager.New,
 		addStaticRouteController: staticroute.Add,
 		addNodeController:        node.Add,
-		routerGet: func() (net.IP, error) {
-			route, err := netlink.RouteGet(net.IP{10, 0, 0, 1})
+		getGw: func(ip net.IP) (net.IP, error) {
+			route, err := netlink.RouteGet(ip)
 			if err != nil {
 				return nil, err
 			}
@@ -151,7 +151,7 @@ type mainImplParams struct {
 	newRouterManager         func() routemanager.RouteManager
 	addStaticRouteController func(manager.Manager, staticroute.ManagerOptions) error
 	addNodeController        func(manager.Manager) error
-	routerGet                func() (net.IP, error)
+	getGw                    func(net.IP) (net.IP, error)
 	setupSignalHandler       func() (stopCh <-chan struct{})
 }
 
@@ -262,7 +262,7 @@ func mainImpl(params mainImplParams) {
 			Table:            table,
 			ProtectedSubnets: protectedSubnets,
 			RouteManager:     routeManager,
-			RouteGet:         params.routerGet,
+			GetGw:            params.getGw,
 		}); err != nil {
 			panic(err)
 		}

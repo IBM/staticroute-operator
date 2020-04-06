@@ -56,7 +56,7 @@ type ManagerOptions struct {
 	Hostname         string
 	Table            int
 	ProtectedSubnets []*net.IPNet
-	RouteGet         func() (net.IP, error)
+	GetGw            func(net.IP) (net.IP, error)
 }
 
 // ReconcileStaticRoute reconciles a StaticRoute object
@@ -294,7 +294,7 @@ func selectGateway(params reconcileImplParams, rw routeWrapper, logger types.Log
 		return invalidGatewayError, nil, nil
 	}
 	if gateway == nil {
-		defaultGateway, err := params.options.RouteGet()
+		defaultGateway, err := params.options.GetGw(net.IP{10, 0, 0, 1})
 		if err != nil {
 			logger.Error(err, "")
 			return routeGetError, nil, err

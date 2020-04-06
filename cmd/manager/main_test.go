@@ -380,7 +380,7 @@ func getContextForHappyFlow() (*mainImplParams, *mockCallbacks) {
 		},
 		addStaticRouteController: func(mgr manager.Manager, options staticroute.ManagerOptions) error {
 			//nolint:errcheck
-			options.RouteGet()
+			options.GetGw(net.IP{10, 0, 0, 1})
 			callbacks.addStaticRouteControllerCalled = true
 			return nil
 		},
@@ -388,7 +388,7 @@ func getContextForHappyFlow() (*mainImplParams, *mockCallbacks) {
 			callbacks.addNodeControllerCalled = true
 			return nil
 		},
-		routerGet: func() (net.IP, error) {
+		getGw: func(ip net.IP) (net.IP, error) {
 			callbacks.routerGetCalled = true
 			return net.IP{10, 0, 0, 1}, nil
 		},
