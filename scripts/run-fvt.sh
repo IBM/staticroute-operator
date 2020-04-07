@@ -152,7 +152,7 @@ spec:
   subnet: "192.168.0.0/24"
   gateway: "172.18.0.1"
 EOF
-check_staticroute_crd_status "example-staticroute-with-wrong-gateway" "all_nodes_shall_post_status" "Gateway IP is not directly routable, next hop detected"
+check_staticroute_crd_status "example-staticroute-with-wrong-gateway" "all_nodes_shall_post_status" "Given gateway IP is not directly routable, cannot setup the route"
 check_route_in_container "192.168.0.0/24 via 172.18.0.1" "all" "negative"
 kubectl delete staticroute example-staticroute-with-wrong-gateway
 

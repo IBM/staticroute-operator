@@ -221,13 +221,13 @@ func reconcileImpl(params reconcileImplParams) (res *reconcile.Result, err error
 		if !reportStatus {
 			return
 		}
-		// special error handling is needed in the following case
+		// special error handling is needed in the following cases
 		var serr error
 		switch res {
 		case overlapsProtected:
 			serr = errors.New("Given subnet overlaps with some protected subnet")
 		case gatewayNotDirectlyRoutableError:
-			serr = errors.New("Gateway IP is not directly routable, next hop detected")
+			serr = errors.New("Given gateway IP is not directly routable, cannot setup the route")
 		default:
 			serr = err
 		}
