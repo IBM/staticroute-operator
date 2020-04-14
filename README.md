@@ -1,3 +1,5 @@
+[![Go Report Card](https://goreportcard.com/badge/github.com/IBM/staticroute-operator)](https://goreportcard.com/report/github.com/IBM/staticroute-operator)
+
 # staticroute-operator
 Static IP route operator for Kubernetes clusters
 
