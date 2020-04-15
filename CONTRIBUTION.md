@@ -112,3 +112,7 @@ your PR will be rejected by the automated DCO check.
 
 The coding style suggested by the Golang community is used in this project. 
 See the [style doc](https://github.com/golang/go/wiki/CodeReviewComments) for details.
+
+## Code Of Conduct
+
+For more information please visit our official site of [Code Of Conduct](https://www.ibm.com/partnerworld/program/code-of-conduct)
