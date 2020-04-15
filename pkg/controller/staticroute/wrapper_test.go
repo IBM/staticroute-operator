@@ -283,8 +283,8 @@ func TestRouteWrapperSetFinalizer(t *testing.T) {
 
 	if !done || len(route.GetFinalizers()) == 0 {
 		t.Error("Finalizer must be added")
-	} else if route.GetFinalizers()[0] != "finalizer.iks.ibm.com" {
-		t.Errorf("`finalizer.iks.ibm.com` not setted as finalizer: %v", route.GetFinalizers())
+	} else if route.GetFinalizers()[0] != "finalizer.static-route.ibm.com" {
+		t.Errorf("`finalizer.static-route.ibm.com` not setted as finalizer: %v", route.GetFinalizers())
 	}
 }
 

@@ -8,14 +8,14 @@ This project is under development, use it on your own risk please.
 # Usage
 
 Public OCI images are not available yet. To give a try to the project you have to build your own image and store it in your image repository. Please follow some easy steps under `Development` section of the page.
-After build you have to apply some Kubernetes manifests: `deploy/crds/iks.ibm.com_staticroutes_crd.yaml`, `deploy/service_account.yaml`, `deploy/role.yaml`, `deploy/role_binding.yaml` and `deploy/operator.dev.yaml`.
+After build you have to apply some Kubernetes manifests: `deploy/crds/static-route.ibm.com_staticroutes_crd.yaml`, `deploy/service_account.yaml`, `deploy/role.yaml`, `deploy/role_binding.yaml` and `deploy/operator.dev.yaml`.
 Finaly you have to create `StaticRoute` custom resource on the cluster. The operator will pick it up and creates underlaying routing policies based on the given resource.
 
 ## Sample custom resources
 
 Route a subnet across the default gateway.
 ```
-apiVersion: iks.ibm.com/v1
+apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
   name: example-staticroute
@@ -25,7 +25,7 @@ spec:
 
 Route a subnet to the custom gateway.
 ```
-apiVersion: iks.ibm.com/v1
+apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
   name: example-staticroute
@@ -36,7 +36,7 @@ spec:
 
 Selecting target node(s) of the static route by label(s):
 ```
-apiVersion: iks.ibm.com/v1
+apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
   name: example-staticroute-with-selector

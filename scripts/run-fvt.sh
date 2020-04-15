@@ -47,7 +47,7 @@ fvtlog "Loading the staticrouter operator image to the cluster..."
 kind load docker-image --name="${KIND_CLUSTER_NAME}" "${REGISTRY_REPO}":"${CONTAINER_VERSION}"
 
 fvtlog "Apply common staticoperator related resources..."
-declare -a common_resources=('crds/iks.ibm.com_staticroutes_crd.yaml' 'service_account.yaml' 'role.yaml' 'role_binding.yaml');
+declare -a common_resources=('crds/static-route.ibm.com_staticroutes_crd.yaml' 'service_account.yaml' 'role.yaml' 'role_binding.yaml');
 for resource in "${common_resources[@]}"; do
   kubectl apply -f "${SCRIPT_PATH}"/../deploy/"${resource}"
 done
@@ -63,14 +63,14 @@ fvtlog "OK"
 
 fvtlog "Start applying staticroute configurations"
 cat <<EOF | kubectl apply -f -
-apiVersion: iks.ibm.com/v1
+apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
   name: example-staticroute-simple
 spec:
   subnet: "192.168.0.0/24"
 ---
-apiVersion: iks.ibm.com/v1
+apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
   name: example-staticroute-with-gateway
@@ -78,7 +78,7 @@ spec:
   subnet: "192.168.1.0/24"
   gateway: "172.17.0.3"
 ---
-apiVersion: iks.ibm.com/v1
+apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
   name: example-staticroute-with-selector
@@ -144,7 +144,7 @@ check_route_in_container "192.168.2.0/24 via 172.17.0.1" "${NODES[1]}" "negative
 
 fvtlog "Test wrong gateway configuration"
 cat <<EOF | kubectl apply -f -
-apiVersion: iks.ibm.com/v1
+apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
   name: example-staticroute-with-wrong-gateway
@@ -162,14 +162,14 @@ sed -i "s|env:|env:\n        - name: PROTECTED_SUBNET_TEST2\n          value: 19
 kubectl apply -f "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
 check_operator_is_running
 cat <<EOF | kubectl apply -f -
-apiVersion: iks.ibm.com/v1
+apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
   name: example-staticroute-protected-subnet1
 spec:
   subnet: "192.168.1.0/24"
 ---
-apiVersion: iks.ibm.com/v1
+apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
   name: example-staticroute-protected-subnet2
@@ -184,7 +184,7 @@ kubectl delete staticroute example-staticroute-protected-subnet1 example-staticr
 
 fvtlog "Test staticroute when selector does not apply - nodes do not have the label, status shall be empty"
 cat <<EOF | kubectl apply -f -
-apiVersion: iks.ibm.com/v1
+apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
   name: example-staticroute-no-match

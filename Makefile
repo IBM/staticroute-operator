@@ -82,13 +82,13 @@ dev-run-operator-remote: dev-publish-image dev-apply-common-resources
 	kubectl create -f deploy/operator.dev.yaml  || :
 
 dev-apply-common-resources:
-	kubectl create -f deploy/crds/iks.ibm.com_staticroutes_crd.yaml || :
+	kubectl create -f deploy/crds/static-route.ibm.com_staticroutes_crd.yaml || :
 	kubectl create -f deploy/service_account.yaml  || :
 	kubectl create -f deploy/role.yaml  || :
 	kubectl create -f deploy/role_binding.yaml  || :
 
 dev-cleanup-operator:
-	kubectl delete -f deploy/crds/iks.ibm.com_staticroutes_crd.yaml  || :
+	kubectl delete -f deploy/crds/static-route.ibm.com_staticroutes_crd.yaml  || :
 	kubectl delete -f deploy/operator.dev.yaml  || :
 	kubectl delete -f deploy/role.yaml  || :
 	kubectl delete -f deploy/role_binding.yaml  || :

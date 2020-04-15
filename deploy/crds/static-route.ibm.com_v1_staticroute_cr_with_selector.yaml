@@ -1,4 +1,4 @@
-apiVersion: iks.ibm.com/v1
+apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
   name: example-staticroute-with-selector
