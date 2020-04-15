@@ -104,3 +104,11 @@ If you want to test, build and publish your changes into your own personal repo 
   - GH_TOKEN, github token generated to access (tag, and push) to your github repository
   - and a set of variables that contains the docker password for each repository url ie. if you set `my.docker.repo.io,quay.io` in DOCKER_REGISTRY_LIST than you need a `my_docker_repo_io` and `quay_io` secrets with the corresponding passwords
   (Note: you should take care of GH_TOKEN and docker passwords to be non-visible secrets in Travis!)
+
+# Contributing
+
+We appreciate your help!
+
+To contribute, please read our contribution guidelines: [CONTRIBUTION.md](CONTRIBUTION.md)
+
+Note that the Static Route Operator project uses the [issue tracker](https://github.com/IBM/staticroute-operator/issues) for bug reports and proposals only. If you have questions, engage our team via Slack by [registering here](https://cloud.ibm.com/kubernetes/slack) and join the discussion in the #general channel on our [public IBM Cloud Kubernetes Service Slack](https://ibm-cloud-success.slack.com/). 
