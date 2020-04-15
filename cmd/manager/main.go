@@ -229,7 +229,7 @@ func mainImpl(params mainImplParams) {
 		panic(err)
 	}
 
-	resources, err := clientset.Discovery().ServerResourcesForGroupVersion("iks.ibm.com/v1")
+	resources, err := clientset.Discovery().ServerResourcesForGroupVersion("static-route.ibm.com/v1")
 	if err != nil {
 		panic(err)
 	}
@@ -270,7 +270,7 @@ func mainImpl(params mainImplParams) {
 		break
 	}
 	if !crdFound {
-		params.logger.Info("CRD not found: staticroutes.iks.ibm.com")
+		params.logger.Info("CRD not found: staticroutes.static-route.ibm.com")
 		panic(err)
 	}
 

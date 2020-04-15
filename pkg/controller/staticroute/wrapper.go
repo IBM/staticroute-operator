@@ -33,7 +33,7 @@ func (rw *routeWrapper) setFinalizer() bool {
 	if len(rw.instance.GetFinalizers()) != 0 {
 		return false
 	}
-	rw.instance.SetFinalizers([]string{"finalizer.iks.ibm.com"})
+	rw.instance.SetFinalizers([]string{"finalizer.static-route.ibm.com"})
 	return true
 }
 

@@ -28,7 +28,7 @@ rules:
   verbs:
   - update
 - apiGroups:
-  - iks.ibm.com
+  - static-route.ibm.com
   resources:
   - '*'
   verbs:
