@@ -111,4 +111,4 @@ We appreciate your help!
 
 To contribute, please read our contribution guidelines: [CONTRIBUTION.md](CONTRIBUTION.md)
 
-Note that the Static Route Operator project uses the [issue tracker](https://github.com/IBM/staticroute-operator/issues) for bug reports and proposals only. If you have questions, engage our team via Slack by [registering here](https://bxcs-slack-invite.mybluemix.net/) and join the discussion in the #general channel on our [public IBM Cloud Kubernetes Service Slack](https://ibm-container-service.slack.com/). 
+Note that the Static Route Operator project uses the [issue tracker](https://github.com/IBM/staticroute-operator/issues) for bug reports and proposals only. If you have questions, engage our team via Slack by [registering here](https://cloud.ibm.com/kubernetes/slack) and join the discussion in the #general channel on our [public IBM Cloud Kubernetes Service Slack](https://ibm-cloud-success.slack.com/). 
