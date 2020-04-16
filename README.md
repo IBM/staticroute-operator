@@ -1,4 +1,4 @@
-[![Go Report Card](https://goreportcard.com/badge/github.com/IBM/staticroute-operator)](https://goreportcard.com/report/github.com/IBM/staticroute-operator)
+[![Go Report Card](https://goreportcard.com/badge/github.com/IBM/staticroute-operator)](https://goreportcard.com/report/github.com/IBM/staticroute-operator) [![Active](http://img.shields.io/badge/Status-Active-green.svg)](https://github.com/IBM/staticroute-operator) [![PR's Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)](https://github.com/IBM/staticroute-operator/pulls) [![Build Status](https://travis-ci.com/IBM/staticroute-operator.svg?branch=master)](https://travis-ci.com/IBM/staticroute-operator) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Code of Conduct](https://img.shields.io/badge/code%20of-conduct-ff69b4.svg?style=flat)](https://www.ibm.com/partnerworld/program/code-of-conduct) 
 
 # staticroute-operator
 Static IP route operator for Kubernetes clusters
@@ -104,3 +104,11 @@ If you want to test, build and publish your changes into your own personal repo 
   - GH_TOKEN, github token generated to access (tag, and push) to your github repository
   - and a set of variables that contains the docker password for each repository url ie. if you set `my.docker.repo.io,quay.io` in DOCKER_REGISTRY_LIST than you need a `my_docker_repo_io` and `quay_io` secrets with the corresponding passwords
   (Note: you should take care of GH_TOKEN and docker passwords to be non-visible secrets in Travis!)
+
+# Contributing
+
+We appreciate your help!
+
+To contribute, please read our contribution guidelines: [CONTRIBUTION.md](CONTRIBUTION.md)
+
+Note that the Static Route Operator project uses the [issue tracker](https://github.com/IBM/staticroute-operator/issues) for bug reports and proposals only. If you have questions, engage our team via Slack by [registering here](https://cloud.ibm.com/kubernetes/slack) and join the discussion in the #general channel on our [public IBM Cloud Kubernetes Service Slack](https://ibm-cloud-success.slack.com/). 
