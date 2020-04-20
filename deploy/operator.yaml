@@ -13,11 +13,13 @@ spec:
     spec:
       serviceAccountName: staticroute-operator 
       hostNetwork: true
+      tolerations:
+      - operator: Exists
       containers:
       - name: staticroute-operator
         image: REPLACE_IMAGE
         command:
-          - staticroute-operator
+        - staticroute-operator
         imagePullPolicy: Always
         securityContext:
           capabilities:

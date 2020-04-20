@@ -10,7 +10,7 @@ fvtlog() {
 }
 
 list_nodes() {
-  kubectl get nodes --selector "node-role.kubernetes.io/master notin ()" --no-headers -o jsonpath='{.items[*].metadata.name}'
+  kubectl get nodes --no-headers -o jsonpath='{.items[*].metadata.name}'
 }
 
 # Function to check the CR status
