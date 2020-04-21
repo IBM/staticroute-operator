@@ -13,6 +13,20 @@ list_nodes() {
   kubectl get nodes --no-headers -o jsonpath='{.items[*].metadata.name}'
 }
 
+list_pods() {
+  kubectl get pods -A --no-headers --selector=name=staticroute-operator -o wide | awk '{print $2}'
+}
+
+get_sr_pod_ns() {
+  kubectl get pods -A --no-headers --selector=name=staticroute-operator -o wide | awk 'NR==1{print $1}'
+}
+
+get_default_gw() {
+  sr_ns=$(get_sr_pod_ns)
+  [[ "${PROVIDER}" == "ibmcloud" ]] && v="10.0.0.0/8" || v="default"
+  kubectl exec ${PODS[0]} -n${sr_ns} -- ip route | grep "^${v}.*via.*dev" | awk '{print $3}'
+}
+
 # Function to check the CR status
 # Parameters:
 # - CR name
@@ -80,7 +94,7 @@ check_operator_is_running() {
   set +e
   local reached_expected_count=false
   for _ in $(seq ${SLEEP_COUNT}); do
-    number_of_pods_not_running=$(kubectl get pods --selector name=staticroute-operator --no-headers | grep -vc Running)
+    number_of_pods_not_running=$(kubectl get pods -A --selector name=staticroute-operator --no-headers | grep -vc Running)
     if [[ $number_of_pods_not_running -eq 0 ]]; then
       reached_expected_count=true
       break
@@ -88,14 +102,14 @@ check_operator_is_running() {
       sleep ${SLEEP_WAIT_SECONDS}
     fi
   done
+  set -e
   if [[ $reached_expected_count == false ]]; then
     fvtlog "Failed to get running status for the staticroute-operator pods. Could it pull its image?"
     return 2
   fi
-  set -e
 }
 
-# Function to check the route table in a container
+# Function to check the route table in a container (pods are hostnetwork)
 # Parameters:
 # - CR name
 # - Node name (optional, needed when a CR applies only for a given node)
@@ -105,12 +119,13 @@ check_route_in_container() {
   local match_node="${2:-all}"
   local test_type="${3:-positive}"
   local match=false
-  for node in "${NODES[@]}"; do
+  local sr_ns=$(get_sr_pod_ns)
+  for node in "${PODS[@]}"; do
     # Execute the command on all the nodes or only the given node
     if [[ "${match_node}" == "all" ]] || 
        [[ "${match_node}" == "${node}" ]]; then
       match=true
-      routes=$(docker exec "${node}" ip route)
+      routes=$(kubectl exec "${node}" -n${sr_ns} ip route)
       if [[ "${test_type}" == "positive" ]] &&
          [[ ${routes} == *${route}* ]]; then
         fvtlog "Passed: It's there on node ${node}!"
@@ -136,4 +151,48 @@ label_nodes_with_default() {
       kubectl label node "${node}" failure-domain.beta.kubernetes.io/zone="${zone}" --overwrite
       kubectl label node "${node}" kubernetes.io/hostname="${node}" --overwrite=true
     done
+}
+
+create_kind_cluster() {
+  kind --version || (echo "Please install kind before running fvt tests"; exit 1)
+
+  fvtlog "Creating Kubernetes cluster with kind"
+  if [[ "$(kind get clusters -q | grep -c ${KIND_CLUSTER_NAME})" != 1 ]]; then
+    cat <<EOF | kind create cluster --name "${KIND_CLUSTER_NAME}" --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+- role: worker
+- role: worker
+EOF
+  else
+    fvtlog "Warning! Running on existing cluster!"
+  fi
+}
+
+apply_common_operator_resources() {
+  fvtlog "Apply common staticoperator related resources..."
+  declare -a common_resources=('crds/static-route.ibm.com_staticroutes_crd.yaml' 'service_account.yaml' 'role.yaml' 'role_binding.yaml');
+  for resource in "${common_resources[@]}"; do
+    kubectl apply -f "${SCRIPT_PATH}"/../deploy/"${resource}"
+  done
+
+  fvtlog "Install the staticroute-operator..."
+  echo $SCRIPT_PATH
+  cp "${SCRIPT_PATH}"/../deploy/operator.yaml "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
+  sed -i "s|REPLACE_IMAGE|${REGISTRY_REPO}:${CONTAINER_VERSION}|g" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
+  sed -i "s|Always|IfNotPresent|g" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
+  kubectl apply -f "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
+}
+
+# Get a node that is running the given pod in $1
+get_node_by_pod() {
+  sr_ns=$(get_sr_pod_ns)
+  kubectl get po "$1" -n"${sr_ns}" --no-headers -owide | awk '{print $7}'
+}
+
+# Return the first item from the given list
+pick_protected_subnet() {
+  echo "${1}" | cut -d, -f1
 }
