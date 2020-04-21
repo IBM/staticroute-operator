@@ -90,10 +90,18 @@ Once you have made changes in the source, you have two option to run and test yo
      - run `make dev-run-operator-local`
 
 ## Functional verification tests
-The fvt tests are written is bash and you could find it under the `scripts` directory. It uses the [KinD](https://kind.sigs.k8s.io/docs/user/quick-start/) environment to setup a Kubernetes cluster and then it applies all the needed resources and starts the operator.
+The fvt tests are written is bash and you could find it under the `scripts` directory. By default it uses the [KinD](https://kind.sigs.k8s.io/docs/user/quick-start/) environment to setup a Kubernetes cluster and then it applies all the needed resources and starts the operator.
   - run `make fvt` to execute the functional tests
 
 Please note, the fvt test currently does not check network connectivity, it only makes sure that the relevant and necessary routes are setup on the node (container). Travis also runs these tests.
+
+Also there is an option to functionally test the operator on an existing cluster (in a cloud or in on-premise) by customizing test run with environment variables. The only prerequisite is that you shall access your cluster via `kubectl` commands before running the tests.
+  - set the Prerequisites described above (repo name, kube config, docker login etc.)
+  - export the following environment variables depending on your needs
+    - PROVIDER (can be `ibmcloud`, if not set then KinD will be used)
+    - SKIP_OPERATOR_INSTALL (if you already have an operator, set this to `true`. Default is `false`)
+    - PROTECTED_SUBNET_TEST1
+    - PROTECTED_SUBNET_TEST2 (list of protected subnets to test, if either of them are empty then no protected subnet test will run)
 
 ## Setting Travis-CI
 If you want to test, build and publish your changes into your own personal repo after forking this project, you need to following variables set up in Travis instance associated to your github project:
