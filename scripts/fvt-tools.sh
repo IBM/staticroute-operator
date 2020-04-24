@@ -22,9 +22,10 @@ get_sr_pod_ns() {
 }
 
 get_default_gw() {
+  local sr_ns 
   sr_ns=$(get_sr_pod_ns)
   [[ "${PROVIDER}" == "ibmcloud" ]] && v="10.0.0.0/8" || v="default"
-  kubectl exec ${PODS[0]} -n${sr_ns} -- ip route | grep "^${v}.*via.*dev" | awk '{print $3}'
+  kubectl exec "${PODS[0]}" -n"${sr_ns}" -- ip route | grep "^${v}.*via.*dev" | awk '{print $3}'
 }
 
 # Function to check the CR status
@@ -119,19 +120,20 @@ check_route_in_container() {
   local match_node="${2:-all}"
   local test_type="${3:-positive}"
   local match=false
-  local sr_ns=$(get_sr_pod_ns)
+  local sr_ns 
+  sr_ns=$(get_sr_pod_ns)
   for node in "${PODS[@]}"; do
     # Execute the command on all the nodes or only the given node
     if [[ "${match_node}" == "all" ]] || 
        [[ "${match_node}" == "${node}" ]]; then
       match=true
-      routes=$(kubectl exec "${node}" -n${sr_ns} ip route)
+      routes=$(kubectl exec "${node}" -n"${sr_ns}" ip route)
       if [[ "${test_type}" == "positive" ]] &&
          [[ ${routes} == *${route}* ]]; then
-        fvtlog "Passed: It's there on node ${node}!"
+        fvtlog "Passed: The route was found on node ${node}!"
       elif [[ "${test_type}" == "negative" ]] &&
            [[ ${routes} != *${route}* ]]; then
-        fvtlog "Passed: It's expected to not be the there on ${node}!"
+        fvtlog "Passed: As expected, the route was not found on node ${node}!"
       else
         fvtlog "Failure in check route on node ${node} - \"${route}\" (${test_type})"
         fvtlog "Routes on the node: ${routes}"
@@ -157,7 +159,7 @@ create_kind_cluster() {
   kind --version || (echo "Please install kind before running fvt tests"; exit 1)
 
   fvtlog "Creating Kubernetes cluster with kind"
-  if [[ "$(kind get clusters -q | grep -c ${KIND_CLUSTER_NAME})" != 1 ]]; then
+  if [[ "$(kind get clusters -q | grep -c "${KIND_CLUSTER_NAME}")" != 1 ]]; then
     cat <<EOF | kind create cluster --name "${KIND_CLUSTER_NAME}" --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
@@ -179,15 +181,18 @@ apply_common_operator_resources() {
   done
 
   fvtlog "Install the staticroute-operator..."
-  echo $SCRIPT_PATH
   cp "${SCRIPT_PATH}"/../deploy/operator.yaml "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
   sed -i "s|REPLACE_IMAGE|${REGISTRY_REPO}:${CONTAINER_VERSION}|g" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
   sed -i "s|Always|IfNotPresent|g" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
+  if [[ ${IMAGEPULLSECRET} ]]; then
+    sed -i "s|hostNetwork: true|&\n      imagePullSecrets:\n      - name: ${IMAGEPULLSECRET}|" deploy/operator.dev.yaml
+  fi
   kubectl apply -f "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
 }
 
 # Get a node that is running the given pod in $1
 get_node_by_pod() {
+  local sr_ns
   sr_ns=$(get_sr_pod_ns)
   kubectl get po "$1" -n"${sr_ns}" --no-headers -owide | awk '{print $7}'
 }
