@@ -17,8 +17,6 @@ cleanup() {
       kind delete cluster --name ${KIND_CLUSTER_NAME}
       rm -rf "${SCRIPT_PATH}"/kubeconfig.yaml
     fi
-  else
-    [[ "${DELETED_NODE_MANIFEST}" ]] && echo "${DELETED_NODE_MANIFEST}" | kubectl apply -f -
   fi
 }
 
