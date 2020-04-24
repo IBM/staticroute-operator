@@ -4,19 +4,20 @@ set -o pipefail
 
 SCRIPT_PATH=$PWD/$(dirname "$0")
 KIND_CLUSTER_NAME="staticroute-operator-fvt"
-DEBUG="${DEBUG:-false}"
+KEEP_ENV="${KEEP_ENV:-false}"
 SKIP_OPERATOR_INSTALL="${SKIP_OPERATOR_INSTALL:-false}"
+PROVIDER="${PROVIDER:-kind}"
+IMAGEPULLSECRET="${IMAGEPULLSECRET:-}"
+
 # shellcheck source=scripts/fvt-tools.sh
 . "${SCRIPT_PATH}/fvt-tools.sh"
 
 cleanup() {
   fvtlog "Running cleanup, error code $?"
-  if [[ ! "${PROVIDER}" ]]
-  then
-    if [[ "${DEBUG}" == "false" ]]; then
+  if [[ "${PROVIDER}" == "kind" ]] &&
+     [[ "${KEEP_ENV}" == "false" ]]; then
       kind delete cluster --name ${KIND_CLUSTER_NAME}
       rm -rf "${SCRIPT_PATH}"/kubeconfig.yaml
-    fi
   fi
 }
 
@@ -24,21 +25,9 @@ trap cleanup EXIT
 
 fvtlog "Preparing environment for staticroute-operator tests..."
 
-## prepare environment for testing
-case "${PROVIDER}" in
-  ibmcloud)
-    fvtlog "ibmcloud set as provider, using an existing cluster"
-
-    # for manual install
-    if [[ "${SKIP_OPERATOR_INSTALL}" == false ]]
-    then
-        apply_common_operator_resources
-    else
-        kubectl delete staticroute --all &>/dev/null
-    fi
-    ;;
-  *)
-    fvtlog "No provider set, using KinD as the default."
+## Prepare the environment for testing
+if [[ ${PROVIDER} == "kind" ]]; then
+    fvtlog "Provider is set to KinD, creating cluster..."
     create_kind_cluster
     
     # Get KUBECONFIG
@@ -46,10 +35,18 @@ case "${PROVIDER}" in
 
     fvtlog "Loading the staticrouter operator image to the cluster..."
     kind load docker-image --name="${KIND_CLUSTER_NAME}" "${REGISTRY_REPO}":"${CONTAINER_VERSION}"
+else
+    fvtlog "Provider was set to ${PROVIDER}, use the provided cluster."
+fi
 
+# Support for manual install
+if [[ "${SKIP_OPERATOR_INSTALL}" == false ]]; then
     apply_common_operator_resources
-    ;;
-esac
+fi
+
+# Delete all the static routes before the test
+kubectl delete staticroute --all &>/dev/null
+
 # Restore default labels on nodes
 label_nodes_with_default "zone01"
 
@@ -66,7 +63,7 @@ NODES=($(list_nodes))
 PODS=($(list_pods))
 
 # Choose a node to test selector case
-A_NODE=($(get_node_by_pod ${PODS[1]}))
+A_NODE=$(get_node_by_pod "${PODS[1]}")
 
 # Get default gateway
 GW=$(get_default_gw)
@@ -119,20 +116,19 @@ fvtlog "Test example-staticroute-with-selector - Check that only worker2 has app
 check_route_in_container "192.168.2.0/24 via ${GW}" "${PODS[0]}" "negative"
 check_route_in_container "192.168.2.0/24 via ${GW}" "${PODS[1]}"
 
-fvtlog "Test selected label is changed - "${PODS[1]}" has to remove its route"
+fvtlog "Test selected label is changed - ${PODS[1]} has to remove its route"
 kubectl label node "${A_NODE}" kubernetes.io/hostname=temp --overwrite=true
 check_staticroute_crd_status "example-staticroute-with-selector" "nodes_shall_not_post_status"
 check_route_in_container "192.168.2.0/24 via ${GW}" "${PODS[1]}" "negative"
 
-fvtlog "And then apply back the label - "${PODS[1]}" has to restore its route"
+fvtlog "And then apply back the label - ${PODS[1]} has to restore its route"
 kubectl label node "${A_NODE}" kubernetes.io/hostname="${A_NODE}" --overwrite=true
 check_staticroute_crd_status "example-staticroute-with-selector" "${A_NODE}"
 check_route_in_container "192.168.2.0/24 via ${GW}" "${PODS[1]}"
 
 # since testing node remove/re-add is bit slow and complicated on a real cluster
 # this just goes with KinD (default) provider
-if [[ ! ${PROVIDER} ]]
-then
+if [[ ${PROVIDER} == "kind" ]]; then
   fvtlog "Test node failure. Other node shall cleanup the status on behalf of the failed node"
   DELETED_NODE_NAME="${A_NODE}"
   DELETED_NODE_MANIFEST="$(kubectl get no "${A_NODE}" -o yaml)"
@@ -179,8 +175,7 @@ check_staticroute_crd_status "example-staticroute-with-wrong-gateway" "all_nodes
 check_route_in_container "192.168.0.0/24 via 172.18.0.1" "all" "negative"
 kubectl delete staticroute example-staticroute-with-wrong-gateway
 
-if [[ ! ${PROVIDER} ]]
-then
+if [[ "${PROVIDER}" == "kind" ]]; then
   fvtlog "Test subnet protection (KinD)"
   sed -i "s|env:|env:\n        - name: PROTECTED_SUBNET_TEST1\n          value: 192.168.1.0\/24,192.168.2.0\/24|" deploy/operator.dev.yaml
   sed -i "s|env:|env:\n        - name: PROTECTED_SUBNET_TEST2\n          value: 192.168.3.0\/24,192.168.4.0\/24,192.168.5.0\/24|" deploy/operator.dev.yaml
@@ -191,7 +186,7 @@ else
   fvtlog "Test subnet protection"
   if [[ "${PROTECTED_SUBNET_TEST1}" && "${PROTECTED_SUBNET_TEST2}" ]]
   then
-    kubectl get ds staticroute-operator -n$(get_sr_pod_ns) -oyaml | \
+    kubectl get ds staticroute-operator -n"$(get_sr_pod_ns)" -oyaml | \
       sed "s|env:|env:\n        - name: PROTECTED_SUBNET_TEST1\n          value: ${PROTECTED_SUBNET_TEST1}\n        - name: PROTECTED_SUBNET_TEST2\n          value: ${PROTECTED_SUBNET_TEST2}|"\
       | kubectl apply -f -
 
@@ -205,8 +200,7 @@ fi
 
 check_operator_is_running
 
-if [[ ! "${SKIP_PROTECTED_SUBNET_TESTS}" ]]
-then
+if [[ ! "${SKIP_PROTECTED_SUBNET_TESTS}" ]]; then
   cat <<EOF | kubectl apply -f -
 apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
