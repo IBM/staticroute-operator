@@ -18,8 +18,6 @@ spec:
       containers:
       - name: staticroute-operator
         image: REPLACE_IMAGE
-        command:
-        - staticroute-operator
         imagePullPolicy: Always
         securityContext:
           capabilities:
