@@ -21,11 +21,30 @@ get_sr_pod_ns() {
   kubectl get pods -A --no-headers --selector=name=staticroute-operator -o wide | awk 'NR==1{print $1}'
 }
 
+create_hostnet_pods() {
+  for node in $(list_nodes); do
+    kubectl run --generator=run-pod/v1 hostnet-${node} --labels="fvt-helper=hostnet" --overrides='{"apiVersion": "v1", "spec": {"nodeSelector": { "kubernetes.io/hostname": "${node}" }}}' --overrides='{"kind":"Pod", "apiVersion":"v1", "spec": {"hostNetwork":true}}' --image busybox -- /bin/tail -f /dev/null
+  done
+}
+
+delete_hostnet_pods() {
+  kubectl delete po --selector fvt-helper=hostnet
+}
+
+# Function to execute a command on the host network of a node, selected by a pod that is running on it
+# Parameters:
+# - Namespace
+# - Pod name
+# - Command
+exec_in_hostnet_of_pod() {
+  kubectl exec -ti hostnet-$(kubectl get po -n $1 $2 -o jsonpath='{.spec.nodeName}') $3
+}
+
 get_default_gw() {
   local sr_ns 
   sr_ns=$(get_sr_pod_ns)
   [[ "${PROVIDER}" == "ibmcloud" ]] && v="10.0.0.0/8" || v="default"
-  kubectl exec "${PODS[0]}" -n"${sr_ns}" -- ip route | grep "^${v}.*via.*dev" | awk '{print $3}'
+  exec_in_hostnet_of_pod "${sr_ns}" "${PODS[0]}" 'ip route' | grep "^${v}.*via.*dev" | awk '{print $3}'
 }
 
 # Function to check the CR status
@@ -127,7 +146,8 @@ check_route_in_container() {
     if [[ "${match_node}" == "all" ]] || 
        [[ "${match_node}" == "${node}" ]]; then
       match=true
-      routes=$(kubectl exec "${node}" -n"${sr_ns}" ip route)
+      routes=$(exec_in_hostnet_of_pod "${sr_ns}" "${node}" 'ip route')
+      echo '**** ' $routes
       if [[ "${test_type}" == "positive" ]] &&
          [[ ${routes} == *${route}* ]]; then
         fvtlog "Passed: The route was found on node ${node}!"

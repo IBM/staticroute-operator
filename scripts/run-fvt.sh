@@ -14,6 +14,7 @@ IMAGEPULLSECRET="${IMAGEPULLSECRET:-}"
 
 cleanup() {
   fvtlog "Running cleanup, error code $?"
+  delete_hostnet_pods
   if [[ "${PROVIDER}" == "kind" ]] &&
      [[ "${KEEP_ENV}" == "false" ]]; then
       kind delete cluster --name ${KIND_CLUSTER_NAME}
@@ -33,7 +34,7 @@ if [[ ${PROVIDER} == "kind" ]]; then
     # Get KUBECONFIG
     kind get kubeconfig --name "${KIND_CLUSTER_NAME}" > "${SCRIPT_PATH}"/kubeconfig.yaml
 
-    fvtlog "Loading the staticrouter operator image to the cluster..."
+    fvtlog "Loading the staticroute operator image to the cluster..."
     kind load docker-image --name="${KIND_CLUSTER_NAME}" "${REGISTRY_REPO}":"${CONTAINER_VERSION}"
 else
     fvtlog "Provider was set to ${PROVIDER}, use the provided cluster."
@@ -43,6 +44,9 @@ fi
 if [[ "${SKIP_OPERATOR_INSTALL}" == false ]]; then
     apply_common_operator_resources
 fi
+
+# Spin up helper pods to exec onto node network NS.
+create_hostnet_pods
 
 # Delete all the static routes before the test
 kubectl delete staticroute --all &>/dev/null
