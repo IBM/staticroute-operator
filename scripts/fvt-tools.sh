@@ -23,7 +23,7 @@ get_sr_pod_ns() {
 
 create_hostnet_pods() {
   for node in $(list_nodes); do
-    kubectl run --generator=run-pod/v1 hostnet-${node} --labels="fvt-helper=hostnet" --overrides='{"apiVersion": "v1", "spec": {"nodeSelector": { "kubernetes.io/hostname": "${node}" }}}' --overrides='{"kind":"Pod", "apiVersion":"v1", "spec": {"hostNetwork":true}}' --image busybox -- /bin/tail -f /dev/null
+    kubectl run --generator=run-pod/v1 hostnet-"${node}" --labels="fvt-helper=hostnet" --overrides="{\"apiVersion\": \"v1\", \"spec\": {\"nodeSelector\": { \"kubernetes.io/hostname\": \"${node}\" }}}" --overrides="{\"kind\":\"Pod\", \"apiVersion\":\"v1\", \"spec\": {\"hostNetwork\":true}}" --image busybox -- /bin/tail -f /dev/null
   done
   for _ in $(seq ${SLEEP_COUNT}); do
     actual=$(kubectl get pods --selector=fvt-helper=hostnet --field-selector=status.phase=Running --no-headers | wc -l)
@@ -46,7 +46,11 @@ delete_hostnet_pods() {
 # - Pod name
 # - Command
 exec_in_hostnet_of_pod() {
-  kubectl exec -ti hostnet-$(kubectl get po -n $1 $2 -o jsonpath='{.spec.nodeName}') $3
+  namespace=$1
+  shift
+  podname=$1
+  shift
+  kubectl exec -ti hostnet-"$(kubectl get po -n "$namespace" "$podname" -o jsonpath='{.spec.nodeName}')" -- sh -c "$@"
 }
 
 get_default_gw() {
@@ -156,7 +160,6 @@ check_route_in_container() {
        [[ "${match_node}" == "${node}" ]]; then
       match=true
       routes=$(exec_in_hostnet_of_pod "${sr_ns}" "${node}" 'ip route')
-      echo '**** ' $routes
       if [[ "${test_type}" == "positive" ]] &&
          [[ ${routes} == *${route}* ]]; then
         fvtlog "Passed: The route was found on node ${node}!"

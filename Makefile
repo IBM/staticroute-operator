@@ -59,7 +59,7 @@ fvt: _calculate-build-number build-operator
 	$(eval export REGISTRY_REPO?=$(REGISTRY_REPO))
 	@scripts/run-fvt.sh
 
-validate-code: lint formatcheck vet test
+validate-code: lint lint-sh formatcheck vet test
 
 update-operator-resource:
 	operator-sdk generate crds
