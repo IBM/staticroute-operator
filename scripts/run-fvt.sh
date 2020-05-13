@@ -61,16 +61,17 @@ check_operator_is_running
 fvtlog "OK"
 
 # Get all the worker nodes
-mapfile -t NODES < <(list_nodes)
+mapfile -d' ' -t NODES < <(list_nodes)
 
 # Get all operator pods
 mapfile -t PODS < <(list_pods)
 
 # Choose a node to test selector case
-A_NODE=$(get_node_by_pod "${PODS[1]}")
+A_NODE=${NODES[1]}
 
 # Get default gateway
 GW=$(get_default_gw)
+fvtlog "Nodes: ${NODES[*]}"
 fvtlog "Choosing Gateway: ${GW}"
 fvtlog "Choosing K8s node as selector tests: ${A_NODE}"
 
