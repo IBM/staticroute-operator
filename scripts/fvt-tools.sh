@@ -25,6 +25,15 @@ create_hostnet_pods() {
   for node in $(list_nodes); do
     kubectl run --generator=run-pod/v1 hostnet-${node} --labels="fvt-helper=hostnet" --overrides='{"apiVersion": "v1", "spec": {"nodeSelector": { "kubernetes.io/hostname": "${node}" }}}' --overrides='{"kind":"Pod", "apiVersion":"v1", "spec": {"hostNetwork":true}}' --image busybox -- /bin/tail -f /dev/null
   done
+  for _ in $(seq ${SLEEP_COUNT}); do
+    actual=$(kubectl get pods --selector=fvt-helper=hostnet --field-selector=status.phase=Running --no-headers | wc -l)
+    expected=$(kubectl get pods --selector=fvt-helper=hostnet --no-headers | wc -l)
+    echo "Waiting for hostnet helper pods to come up. Actual: ${actual}, expected: ${expected}"
+    if [[ "${actual}" -eq "${expected}" ]]; then
+      break
+    fi
+    sleep ${SLEEP_WAIT_SECONDS}
+  done
 }
 
 delete_hostnet_pods() {
