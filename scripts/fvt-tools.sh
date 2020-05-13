@@ -74,7 +74,7 @@ check_staticroute_crd_status() {
   local status_ok=false
   for _ in $(seq ${SLEEP_COUNT}); do
     if [[ "${match_node}" == "all_nodes_shall_post_status" ]]; then
-      cr_array=($(kubectl get staticroute "${cr}" --no-headers -o jsonpath='{.status.nodeStatus[*].hostname}'))
+      mapfile -t cr_array < <(kubectl get staticroute "${cr}" --no-headers -o jsonpath='{.status.nodeStatus[*].hostname}')
       if [[ ${#NODES[*]} -eq ${#cr_array[*]} ]]; then
         status_ok=true
         break
@@ -98,7 +98,7 @@ check_staticroute_crd_status() {
   done
 
   # Get all the error fields and word by word put to an array
-  local error_array=($(kubectl get staticroute "${cr}" --no-headers -o jsonpath='{.status.nodeStatus[*].error}'))
+  mapfile -d* -t error_array < <(kubectl get staticroute "${cr}" --no-headers -o go-template --template="{{range .status.nodeStatus}}{{if .error}}{{.error}}*{{end}}{{end}}")
   if [[ "${error_string}" != "" ]]; then
     if [[ "${#error_array[*]}" == 0 ]]; then
       status_ok=false

@@ -61,10 +61,10 @@ check_operator_is_running
 fvtlog "OK"
 
 # Get all the worker nodes
-NODES=($(list_nodes))
+mapfile -t NODES < <(list_nodes)
 
 # Get all operator pods
-PODS=($(list_pods))
+mapfile -t PODS < <(list_pods)
 
 # Choose a node to test selector case
 A_NODE=$(get_node_by_pod "${PODS[1]}")
@@ -140,7 +140,7 @@ if [[ ${PROVIDER} == "kind" ]]; then
   docker pause "${A_NODE}"
   kubectl delete no "${A_NODE}"
 
-  NODES=($(list_nodes))
+  mapfile -t NODES < <(list_nodes)
   check_staticroute_crd_status "example-staticroute-simple"
   check_staticroute_crd_status "example-staticroute-with-gateway"
   check_staticroute_crd_status "example-staticroute-with-selector" "nodes_shall_not_post_status"
@@ -148,7 +148,7 @@ if [[ ${PROVIDER} == "kind" ]]; then
   echo "${DELETED_NODE_MANIFEST}" | kubectl apply -f -
   docker unpause "${DELETED_NODE_NAME}"
 
-  NODES=($(list_nodes))
+  mapfile -t NODES < <(list_nodes)
   check_staticroute_crd_status "example-staticroute-simple"
   check_staticroute_crd_status "example-staticroute-with-gateway"
   check_staticroute_crd_status "example-staticroute-with-selector" "${A_NODE}"
@@ -156,7 +156,7 @@ else
   fvtlog "Provider is not KinD, skipping node failure tests"
 fi
 
-PODS=($(list_pods))
+mapfile -t PODS < <(list_pods)
 fvtlog "Test staticroute deletion - routes must be deleted"
 kubectl delete staticroute example-staticroute-simple
 check_route_in_container "192.168.0.0/24 via ${GW}" "all" "negative"
@@ -220,8 +220,8 @@ metadata:
 spec:
   subnet: "${SUBNET2}"
 EOF
-  NODES=($(list_nodes))
-  PODS=($(list_pods))
+  mapfile -t NODES < <(list_nodes)
+  mapfile -t PODS < <(list_pods)
   check_staticroute_crd_status "example-staticroute-protected-subnet1" "all_nodes_shall_post_status" "Given subnet overlaps with some protected subnet"
   check_staticroute_crd_status "example-staticroute-protected-subnet2" "all_nodes_shall_post_status" "Given subnet overlaps with some protected subnet"
   check_route_in_container "${SUBNET1} via ${GW}" "all" "negative"
