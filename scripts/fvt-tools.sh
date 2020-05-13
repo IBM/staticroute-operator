@@ -23,12 +23,12 @@ get_sr_pod_ns() {
 
 create_hostnet_pods() {
   for node in $(list_nodes); do
-    kubectl run --generator=run-pod/v1 hostnet-"${node}" --labels="fvt-helper=hostnet" --overrides="{\"apiVersion\": \"v1\", \"spec\": {\"nodeSelector\": { \"kubernetes.io/hostname\": \"${node}\" }}}" --overrides="{\"kind\":\"Pod\", \"apiVersion\":\"v1\", \"spec\": {\"hostNetwork\":true}}" --image busybox -- /bin/tail -f /dev/null
+    kubectl run --generator=run-pod/v1 hostnet-"${node}" --labels="fvt-helper=hostnet" --overrides="{\"apiVersion\": \"v1\", \"spec\": {\"hostNetwork\":true, \"nodeSelector\": { \"kubernetes.io/hostname\": \"${node}\" }, \"tolerations\": [{ \"operator\": \"Exists\" }]}}" --image busybox -- /bin/tail -f /dev/null
   done
   for _ in $(seq ${SLEEP_COUNT}); do
     actual=$(kubectl get pods --selector=fvt-helper=hostnet --field-selector=status.phase=Running --no-headers | wc -l)
     expected=$(kubectl get pods --selector=fvt-helper=hostnet --no-headers | wc -l)
-    echo "Waiting for hostnet helper pods to come up. Actual: ${actual}, expected: ${expected}"
+    fvtlog "Waiting for hostnet helper pods to come up. Actual: ${actual}, expected: ${expected}"
     if [[ "${actual}" -eq "${expected}" ]]; then
       break
     fi
@@ -50,7 +50,8 @@ exec_in_hostnet_of_pod() {
   shift
   podname=$1
   shift
-  kubectl exec -ti hostnet-"$(kubectl get po -n "$namespace" "$podname" -o jsonpath='{.spec.nodeName}')" -- sh -c "$@"
+  nodename=$(kubectl get po -n "$namespace" "$podname" -o jsonpath='{.spec.nodeName}')
+  kubectl exec hostnet-"${nodename}" -- sh -c "$@"
 }
 
 get_default_gw() {
@@ -145,36 +146,49 @@ check_operator_is_running() {
 # Function to check the route table in a container (pods are hostnetwork)
 # Parameters:
 # - CR name
-# - Node name (optional, needed when a CR applies only for a given node)
+# - Pod name (optional, needed when a CR applies only for a given node)
 # - Test type which is able to differentiate positive or negative tests
 check_route_in_container() {
   local route=$1
-  local match_node="${2:-all}"
+  local match_pod="${2:-all}"
   local test_type="${3:-positive}"
   local match=false
-  local sr_ns 
+  local passed=false
+  local sr_ns
+  local routes
   sr_ns=$(get_sr_pod_ns)
-  for node in "${PODS[@]}"; do
+  for pod in "${PODS[@]}"; do
     # Execute the command on all the nodes or only the given node
-    if [[ "${match_node}" == "all" ]] || 
-       [[ "${match_node}" == "${node}" ]]; then
+    if [[ "${match_pod}" == "all" ]] || 
+       [[ "${match_pod}" == "${pod}" ]]; then
       match=true
-      routes=$(exec_in_hostnet_of_pod "${sr_ns}" "${node}" 'ip route')
-      if [[ "${test_type}" == "positive" ]] &&
-         [[ ${routes} == *${route}* ]]; then
-        fvtlog "Passed: The route was found on node ${node}!"
-      elif [[ "${test_type}" == "negative" ]] &&
-           [[ ${routes} != *${route}* ]]; then
-        fvtlog "Passed: As expected, the route was not found on node ${node}!"
-      else
-        fvtlog "Failure in check route on node ${node} - \"${route}\" (${test_type})"
+      passed=false
+      for _ in $(seq ${SLEEP_COUNT}); do
+        routes=$(exec_in_hostnet_of_pod "${sr_ns}" "${pod}" 'ip route')
+        if [[ "${test_type}" == "positive" ]] &&
+          [[ ${routes} == *${route}* ]]; then
+          fvtlog "Passed: The route was found on node of pod ${pod}!"
+          passed=true
+          break
+        elif [[ "${test_type}" == "negative" ]] &&
+            [[ ${routes} != *${route}* ]]; then
+          fvtlog "Passed: As expected, the route was not found on node of pod ${pod}!"
+          passed=true
+          break
+        else
+          sleep ${SLEEP_WAIT_SECONDS}
+        fi
+      done
+
+      if [[ "${passed}" == false ]]; then
+        fvtlog "Failure in check route on node of pod ${pod} - \"${route}\" (${test_type})"
         fvtlog "Routes on the node: ${routes}"
         return 3
       fi
     fi
   done
   if [[ "${match}" == false ]]; then
-    fvtlog "Failure in check route on node: there were no matching node for the parameter ${match_node}!"
+    fvtlog "Failure in check route on node: there were no matching node for the parameter ${match_pod}!"
     return 1
   fi
 }
