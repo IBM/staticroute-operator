@@ -54,7 +54,7 @@ vet:
 test:
 	go test -race -timeout 60s -covermode=atomic -coverprofile=cover.out ${GO_PACKAGES}
 
-fvt: _calculate-build-number build-operator
+fvt: _calculate-build-number lint-sh build-operator
 	docker tag $(REGISTRY_REPO) $(REGISTRY_REPO):$(CONTAINER_VERSION)
 	@scripts/run-fvt.sh
 
