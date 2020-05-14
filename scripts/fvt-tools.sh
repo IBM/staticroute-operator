@@ -45,7 +45,7 @@ delete_hostnet_pods() {
 # - Node name
 # - Command (may be multiple string)
 exec_in_hostnet_of_node() {
-  nodename=$1
+  local nodename=$1
   shift
   kubectl exec hostnet-"${nodename}" -- sh -c "$@"
 }
