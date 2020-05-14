@@ -45,6 +45,9 @@ if [[ "${SKIP_OPERATOR_INSTALL}" == false ]]; then
     apply_common_operator_resources
 fi
 
+# Get all the worker nodes
+update_node_list
+
 # Spin up helper pods to exec onto node network NS.
 create_hostnet_pods
 
@@ -60,14 +63,8 @@ fvtlog "Check if the staticroute-operator pods are running..."
 check_operator_is_running
 fvtlog "OK"
 
-# Get all the worker nodes
-mapfile -d' ' -t NODES < <(list_nodes)
-
-# Get all operator pods
-mapfile -t PODS < <(list_pods)
-
 # Choose a node to test selector case
-A_NODE=${NODES[1]}
+A_NODE=$(pick_non_master_node)
 
 # Get default gateway
 GW=$(get_default_gw)
@@ -112,24 +109,30 @@ check_staticroute_crd_status "example-staticroute-with-gateway"
 check_staticroute_crd_status "example-staticroute-with-selector" "${A_NODE}"
 
 fvtlog "Test example-staticroute-simple - Check that all workers have applied the route to 192.168.0.0/24"
-check_route_in_container "192.168.0.0/24 via ${GW}"
+check_route_on_nodes "192.168.0.0/24 via ${GW}"
 
 fvtlog "Test example-staticroute-with-gateway - Check that all workers have applied the route to 192.168.1.0/24 with the defined next-hop address"
-check_route_in_container "192.168.1.0/24 via ${GW}"
+check_route_on_nodes "192.168.1.0/24 via ${GW}"
 
-fvtlog "Test example-staticroute-with-selector - Check that only worker2 has applied the route to 192.168.2.0/24"
-check_route_in_container "192.168.2.0/24 via ${GW}" "${PODS[0]}" "negative"
-check_route_in_container "192.168.2.0/24 via ${GW}" "${PODS[1]}"
+fvtlog "Test example-staticroute-with-selector - Check that only ${A_NODE} has applied the route to 192.168.2.0/24"
+for index in ${!NODES[*]}
+do
+  if [[ "${A_NODE}" == "${NODES[$index]}" ]]; then
+    check_route_on_nodes "192.168.2.0/24 via ${GW}" "${NODES[$index]}"
+  else
+    check_route_on_nodes "192.168.2.0/24 via ${GW}" "${NODES[$index]}" "negative"
+  fi
+done
 
-fvtlog "Test selected label is changed - ${PODS[1]} has to remove its route"
+fvtlog "Test selected label is changed - ${A_NODE} has to remove its route"
 kubectl label node "${A_NODE}" kubernetes.io/hostname=temp --overwrite=true
 check_staticroute_crd_status "example-staticroute-with-selector" "nodes_shall_not_post_status"
-check_route_in_container "192.168.2.0/24 via ${GW}" "${PODS[1]}" "negative"
+check_route_on_nodes "192.168.2.0/24 via ${GW}" "${A_NODE}" "negative"
 
-fvtlog "And then apply back the label - ${PODS[1]} has to restore its route"
+fvtlog "And then apply back the label - ${A_NODE} has to restore its route"
 kubectl label node "${A_NODE}" kubernetes.io/hostname="${A_NODE}" --overwrite=true
 check_staticroute_crd_status "example-staticroute-with-selector" "${A_NODE}"
-check_route_in_container "192.168.2.0/24 via ${GW}" "${PODS[1]}"
+check_route_on_nodes "192.168.2.0/24 via ${GW}" "${A_NODE}"
 
 # since testing node remove/re-add is bit slow and complicated on a real cluster
 # this just goes with KinD (default) provider
@@ -141,7 +144,7 @@ if [[ ${PROVIDER} == "kind" ]]; then
   docker pause "${A_NODE}"
   kubectl delete no "${A_NODE}"
 
-  mapfile -t NODES < <(list_nodes)
+  update_node_list
   check_staticroute_crd_status "example-staticroute-simple"
   check_staticroute_crd_status "example-staticroute-with-gateway"
   check_staticroute_crd_status "example-staticroute-with-selector" "nodes_shall_not_post_status"
@@ -149,7 +152,7 @@ if [[ ${PROVIDER} == "kind" ]]; then
   echo "${DELETED_NODE_MANIFEST}" | kubectl apply -f -
   docker unpause "${DELETED_NODE_NAME}"
 
-  mapfile -t NODES < <(list_nodes)
+  update_node_list
   check_staticroute_crd_status "example-staticroute-simple"
   check_staticroute_crd_status "example-staticroute-with-gateway"
   check_staticroute_crd_status "example-staticroute-with-selector" "${A_NODE}"
@@ -157,14 +160,14 @@ else
   fvtlog "Provider is not KinD, skipping node failure tests"
 fi
 
-mapfile -t PODS < <(list_pods)
+update_node_list
 fvtlog "Test staticroute deletion - routes must be deleted"
 kubectl delete staticroute example-staticroute-simple
-check_route_in_container "192.168.0.0/24 via ${GW}" "all" "negative"
+check_route_on_nodes "192.168.0.0/24 via ${GW}" "all" "negative"
 kubectl delete staticroute example-staticroute-with-gateway
-check_route_in_container "192.168.1.0/24 via ${GW}" "all" "negative"
+check_route_on_nodes "192.168.1.0/24 via ${GW}" "all" "negative"
 kubectl delete staticroute example-staticroute-with-selector
-check_route_in_container "192.168.2.0/24 via ${GW}" "${PODS[1]}" "negative"
+check_route_on_nodes "192.168.2.0/24 via ${GW}" "all" "negative"
 
 fvtlog "Test wrong gateway configuration"
 cat <<EOF | kubectl apply -f -
@@ -177,7 +180,7 @@ spec:
   gateway: "172.18.0.1"
 EOF
 check_staticroute_crd_status "example-staticroute-with-wrong-gateway" "all_nodes_shall_post_status" "Given gateway IP is not directly routable, cannot setup the route"
-check_route_in_container "192.168.0.0/24 via 172.18.0.1" "all" "negative"
+check_route_on_nodes "192.168.0.0/24 via 172.18.0.1" "all" "negative"
 kubectl delete staticroute example-staticroute-with-wrong-gateway
 
 if [[ "${PROVIDER}" == "kind" ]]; then
@@ -221,12 +224,11 @@ metadata:
 spec:
   subnet: "${SUBNET2}"
 EOF
-  mapfile -t NODES < <(list_nodes)
-  mapfile -t PODS < <(list_pods)
+  update_node_list
   check_staticroute_crd_status "example-staticroute-protected-subnet1" "all_nodes_shall_post_status" "Given subnet overlaps with some protected subnet"
   check_staticroute_crd_status "example-staticroute-protected-subnet2" "all_nodes_shall_post_status" "Given subnet overlaps with some protected subnet"
-  check_route_in_container "${SUBNET1} via ${GW}" "all" "negative"
-  check_route_in_container "${SUBNET2} via ${GW}" "all" "negative"
+  check_route_on_nodes "${SUBNET1} via ${GW}" "all" "negative"
+  check_route_on_nodes "${SUBNET2} via ${GW}" "all" "negative"
   kubectl delete staticroute example-staticroute-protected-subnet1 example-staticroute-protected-subnet2
 fi
 
@@ -247,7 +249,7 @@ spec:
         - zone02
 EOF
 check_staticroute_crd_status "example-staticroute-no-match" "nodes_shall_not_post_status"
-check_route_in_container "192.168.0.0/24 via ${GW}" "all" "negative"
+check_route_on_nodes "192.168.0.0/24 via ${GW}" "all" "negative"
 kubectl delete staticroute example-staticroute-no-match
 
 fvtlog "All tests passed!"

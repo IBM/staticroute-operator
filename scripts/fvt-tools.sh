@@ -9,21 +9,21 @@ fvtlog() {
   echo "$(date +"%F %T %Z")" "[fvt]" "$*"
 }
 
-list_nodes() {
-  kubectl get nodes --no-headers -o jsonpath='{.items[*].metadata.name}'
+update_node_list() {
+  mapfile -d' ' -t NODES < <(kubectl get nodes --no-headers -o jsonpath='{.items[*].metadata.name}')
 }
 
-list_pods() {
-  kubectl get pods -A --no-headers --selector=name=staticroute-operator -o wide | awk '{print $2}'
-}
-
-get_sr_pod_ns() {
-  kubectl get pods -A --no-headers --selector=name=staticroute-operator -o wide | awk 'NR==1{print $1}'
+pick_non_master_node() {
+  for index in ${!NODES[*]}
+  do
+    kubectl get no "${NODES[$index]}" --show-labels | grep 'node-role.kubernetes.io/master=' > /dev/null && continue || echo -ne "${NODES[$index]}"; break
+  done
 }
 
 create_hostnet_pods() {
-  for node in $(list_nodes); do
-    kubectl run --generator=run-pod/v1 hostnet-"${node}" --labels="fvt-helper=hostnet" --overrides="{\"apiVersion\": \"v1\", \"spec\": {\"hostNetwork\":true, \"nodeSelector\": { \"kubernetes.io/hostname\": \"${node}\" }, \"tolerations\": [{ \"operator\": \"Exists\" }]}}" --image busybox -- /bin/tail -f /dev/null
+  for index in ${!NODES[*]}
+  do
+    kubectl run --generator=run-pod/v1 hostnet-"${NODES[$index]}" --labels="fvt-helper=hostnet" --overrides="{\"apiVersion\": \"v1\", \"spec\": {\"hostNetwork\":true, \"nodeSelector\": { \"kubernetes.io/hostname\": \"${NODES[$index]}\" }, \"tolerations\": [{ \"operator\": \"Exists\" }]}}" --image busybox -- /bin/tail -f /dev/null
   done
   for _ in $(seq ${SLEEP_COUNT}); do
     actual=$(kubectl get pods --selector=fvt-helper=hostnet --field-selector=status.phase=Running --no-headers | wc -l)
@@ -42,23 +42,17 @@ delete_hostnet_pods() {
 
 # Function to execute a command on the host network of a node, selected by a pod that is running on it
 # Parameters:
-# - Namespace
-# - Pod name
-# - Command
-exec_in_hostnet_of_pod() {
-  namespace=$1
+# - Node name
+# - Command (may be multiple string)
+exec_in_hostnet_of_node() {
+  nodename=$1
   shift
-  podname=$1
-  shift
-  nodename=$(kubectl get po -n "$namespace" "$podname" -o jsonpath='{.spec.nodeName}')
   kubectl exec hostnet-"${nodename}" -- sh -c "$@"
 }
 
 get_default_gw() {
-  local sr_ns 
-  sr_ns=$(get_sr_pod_ns)
   [[ "${PROVIDER}" == "ibmcloud" ]] && v="10.0.0.0/8" || v="default"
-  exec_in_hostnet_of_pod "${sr_ns}" "${PODS[0]}" 'ip route' | grep "^${v}.*via.*dev" | awk '{print $3}'
+  exec_in_hostnet_of_node "${NODES[0]}" 'ip route' | grep "^${v}.*via.*dev" | awk '{print $3}'
 }
 
 # Function to check the CR status
@@ -74,7 +68,7 @@ check_staticroute_crd_status() {
   local status_ok=false
   for _ in $(seq ${SLEEP_COUNT}); do
     if [[ "${match_node}" == "all_nodes_shall_post_status" ]]; then
-      mapfile -t cr_array < <(kubectl get staticroute "${cr}" --no-headers -o jsonpath='{.status.nodeStatus[*].hostname}')
+      mapfile -d' ' -t cr_array < <(kubectl get staticroute "${cr}" --no-headers -o jsonpath='{.status.nodeStatus[*].hostname}')
       if [[ ${#NODES[*]} -eq ${#cr_array[*]} ]]; then
         status_ok=true
         break
@@ -143,36 +137,34 @@ check_operator_is_running() {
   fi
 }
 
-# Function to check the route table in a container (pods are hostnetwork)
+# Function to check the route table on nodes
 # Parameters:
 # - CR name
-# - Pod name (optional, needed when a CR applies only for a given node)
+# - Node name (optional, needed when a CR applies only for a given node)
 # - Test type which is able to differentiate positive or negative tests
-check_route_in_container() {
+check_route_on_nodes() {
   local route=$1
-  local match_pod="${2:-all}"
+  local match_node="${2:-all}"
   local test_type="${3:-positive}"
   local match=false
   local passed=false
-  local sr_ns
   local routes
-  sr_ns=$(get_sr_pod_ns)
-  for pod in "${PODS[@]}"; do
+  for node in "${NODES[@]}"; do
     # Execute the command on all the nodes or only the given node
-    if [[ "${match_pod}" == "all" ]] || 
-       [[ "${match_pod}" == "${pod}" ]]; then
+    if [[ "${match_node}" == "all" ]] || 
+       [[ "${match_node}" == "${node}" ]]; then
       match=true
       passed=false
       for _ in $(seq ${SLEEP_COUNT}); do
-        routes=$(exec_in_hostnet_of_pod "${sr_ns}" "${pod}" 'ip route')
+        routes=$(exec_in_hostnet_of_node "${node}" 'ip route')
         if [[ "${test_type}" == "positive" ]] &&
           [[ ${routes} == *${route}* ]]; then
-          fvtlog "Passed: The route was found on node of pod ${pod}!"
+          fvtlog "Passed: The route was found on node ${node}!"
           passed=true
           break
         elif [[ "${test_type}" == "negative" ]] &&
             [[ ${routes} != *${route}* ]]; then
-          fvtlog "Passed: As expected, the route was not found on node of pod ${pod}!"
+          fvtlog "Passed: As expected, the route was not found on node ${node}!"
           passed=true
           break
         else
@@ -181,14 +173,14 @@ check_route_in_container() {
       done
 
       if [[ "${passed}" == false ]]; then
-        fvtlog "Failure in check route on node of pod ${pod} - \"${route}\" (${test_type})"
+        fvtlog "Failure in check route on node ${node} - \"${route}\" (${test_type})"
         fvtlog "Routes on the node: ${routes}"
         return 3
       fi
     fi
   done
   if [[ "${match}" == false ]]; then
-    fvtlog "Failure in check route on node: there were no matching node for the parameter ${match_pod}!"
+    fvtlog "Failure in check route on node: there were no matching node for the parameter ${match_node}!"
     return 1
   fi
 }
@@ -234,13 +226,6 @@ apply_common_operator_resources() {
     sed -i "s|hostNetwork: true|&\n      imagePullSecrets:\n      - name: ${IMAGEPULLSECRET}|" deploy/operator.dev.yaml
   fi
   kubectl apply -f "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
-}
-
-# Get a node that is running the given pod in $1
-get_node_by_pod() {
-  local sr_ns
-  sr_ns=$(get_sr_pod_ns)
-  kubectl get po "$1" -n"${sr_ns}" --no-headers -owide | awk '{print $7}'
 }
 
 # Return the first item from the given list
