@@ -30,9 +30,11 @@ import (
 	"k8s.io/client-go/rest"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
+	"net/http"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
@@ -150,6 +152,18 @@ func (m mockManager) GetAPIReader() client.Reader {
 }
 
 func (m mockManager) GetWebhookServer() *webhook.Server {
+	return nil
+}
+
+func (m mockManager) AddHealthzCheck(string, healthz.Checker) error {
+	return nil
+}
+
+func (m mockManager) AddReadyzCheck(string, healthz.Checker) error {
+	return nil
+}
+
+func (m mockManager) AddMetricsExtraHandler(string, http.Handler) error {
 	return nil
 }
 
