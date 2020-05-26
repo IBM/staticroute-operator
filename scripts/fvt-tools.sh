@@ -23,7 +23,7 @@ pick_non_master_node() {
 create_hostnet_pods() {
   for index in ${!NODES[*]}
   do
-    kubectl run --generator=run-pod/v1 hostnet-"${NODES[$index]}" --labels="fvt-helper=hostnet" --overrides="{\"apiVersion\": \"v1\", \"spec\": {\"hostNetwork\":true, \"nodeSelector\": { \"kubernetes.io/hostname\": \"${NODES[$index]}\" }, \"tolerations\": [{ \"operator\": \"Exists\" }]}}" --image busybox -- /bin/tail -f /dev/null
+    kubectl run --generator=run-pod/v1 hostnet-"${NODES[$index]//\./-}" --labels="fvt-helper=hostnet" --overrides="{\"apiVersion\": \"v1\", \"spec\": {\"hostNetwork\":true, \"nodeSelector\": { \"kubernetes.io/hostname\": \"${NODES[$index]}\" }, \"tolerations\": [{ \"operator\": \"Exists\" }]}}" --image busybox -- /bin/tail -f /dev/null
   done
   for _ in $(seq ${SLEEP_COUNT}); do
     actual=$(kubectl get pods --selector=fvt-helper=hostnet --field-selector=status.phase=Running --no-headers | wc -l)
@@ -47,7 +47,7 @@ delete_hostnet_pods() {
 exec_in_hostnet_of_node() {
   local nodename=$1
   shift
-  kubectl exec hostnet-"${nodename}" -- sh -c "$@"
+  kubectl exec hostnet-"${nodename//\./-}" -- sh -c "$@"
 }
 
 get_default_gw() {
@@ -223,7 +223,7 @@ apply_common_operator_resources() {
   sed -i "s|REPLACE_IMAGE|${REGISTRY_REPO}:${CONTAINER_VERSION}|g" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
   sed -i "s|Always|IfNotPresent|g" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
   if [[ ${IMAGEPULLSECRET} ]]; then
-    sed -i "s|hostNetwork: true|&\n      imagePullSecrets:\n      - name: ${IMAGEPULLSECRET}|" deploy/operator.dev.yaml
+    sed -i "s|hostNetwork: true|&\n      imagePullSecrets:\n      - name: ${IMAGEPULLSECRET}|" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
   fi
   kubectl apply -f "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
 }
