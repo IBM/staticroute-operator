@@ -17,47 +17,23 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
-	"regexp"
 	"runtime/debug"
 	"testing"
 
 	"github.com/IBM/staticroute-operator/pkg/controller/staticroute"
 	"github.com/IBM/staticroute-operator/pkg/routemanager"
-	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
-	"github.com/operator-framework/operator-sdk/pkg/metrics"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-func TestMetricHost(t *testing.T) {
-	r, _ := regexp.Compile(`^([0-9]{1,3}\.){3}[0-9]{1,3}$`)
-	if !r.MatchString(metricsHost) {
-		t.Errorf("metricsHost is not a valid IP address: %s", metricsHost)
-	}
-}
-
-func TestMetricsPort(t *testing.T) {
-	if metricsPort < 0 || metricsPort > 65535 {
-		t.Errorf("metricsPort is not between 0 and 65535: %s", metricsHost)
-	}
-}
-
-func TestOperatorMetricsPort(t *testing.T) {
-	if operatorMetricsPort < 0 || operatorMetricsPort > 65535 {
-		t.Errorf("operatorMetricsPort is not between 0 and 65535: %s", metricsHost)
-	}
-}
-
 func TestDefaultRouteTable(t *testing.T) {
 	if defaultRouteTable < 0 || defaultRouteTable > 254 {
-		t.Errorf("defaultRouteTable is not between 0 and 254: %s", metricsHost)
+		t.Errorf("defaultRouteTable is not between 0 and 254: %d", defaultRouteTable)
 	}
 }
 
@@ -71,9 +47,6 @@ func TestMainImpl(t *testing.T) {
 		getConfigCalled:                true,
 		newManagerCalled:               true,
 		addToSchemeCalled:              true,
-		serveCRMetricsCalled:           true,
-		createMetricsServiceCalled:     true,
-		createServiceMonitorsCalled:    true,
 		newKubernetesConfigCalled:      true,
 		newRouterManagerCalled:         true,
 		addStaticRouteControllerCalled: true,
@@ -87,45 +60,6 @@ func TestMainImpl(t *testing.T) {
 	}
 }
 
-func TestMainImplServeCRMetricsFails(t *testing.T) {
-	defer catchError(t)()
-	params, _ := getContextForHappyFlow()
-	params.serveCRMetrics = func(*rest.Config) error {
-		return errors.New("fatal-error")
-	}
-
-	mainImpl(*params)
-}
-
-func TestMainImplCreateMetricsServiceFails(t *testing.T) {
-	defer catchError(t)()
-	params, _ := getContextForHappyFlow()
-	params.createMetricsService = func(context.Context, *rest.Config, []v1.ServicePort) (*v1.Service, error) {
-		return nil, errors.New("fatal-error")
-	}
-
-	mainImpl(*params)
-}
-
-func TestMainImplCreateServiceMonitorsFails(t *testing.T) {
-	defer catchError(t)()
-	params, _ := getContextForHappyFlow()
-	params.createServiceMonitors = func(*rest.Config, string, []*v1.Service, ...metrics.ServiceMonitorUpdater) ([]*monitoringv1.ServiceMonitor, error) {
-		return nil, errors.New("fatal-error")
-	}
-
-	mainImpl(*params)
-}
-
-func TestMainImplCreateServiceMonitorsFailsNotPreset(t *testing.T) {
-	defer catchError(t)()
-	params, _ := getContextForHappyFlow()
-	params.createServiceMonitors = func(*rest.Config, string, []*v1.Service, ...metrics.ServiceMonitorUpdater) ([]*monitoringv1.ServiceMonitor, error) {
-		return nil, metrics.ErrServiceMonitorNotPresent
-	}
-
-	mainImpl(*params)
-}
 func TestMainImplTargetTableOk(t *testing.T) {
 	var actualTable int
 	defer catchError(t)()
@@ -357,18 +291,6 @@ func getContextForHappyFlow() (*mainImplParams, *mockCallbacks) {
 		addToScheme: func(s *runtime.Scheme) error {
 			callbacks.addToSchemeCalled = true
 			return nil
-		},
-		serveCRMetrics: func(*rest.Config) error {
-			callbacks.serveCRMetricsCalled = true
-			return nil
-		},
-		createMetricsService: func(context.Context, *rest.Config, []v1.ServicePort) (*v1.Service, error) {
-			callbacks.createMetricsServiceCalled = true
-			return nil, nil
-		},
-		createServiceMonitors: func(*rest.Config, string, []*v1.Service, ...metrics.ServiceMonitorUpdater) ([]*monitoringv1.ServiceMonitor, error) {
-			callbacks.createServiceMonitorsCalled = true
-			return nil, nil
 		},
 		newKubernetesConfig: func(c *rest.Config) (discoverable, error) {
 			callbacks.newKubernetesConfigCalled = true
