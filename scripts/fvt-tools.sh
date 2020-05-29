@@ -25,19 +25,26 @@ pick_non_master_node() {
 }
 
 create_hostnet_pods() {
+  [[ "${PROVIDER}" == "ibmcloud" ]] && image="us.icr.io/armada-master/busybox:1.30.1" || image="busybox"
   for index in ${!NODES[*]}
   do
-    kubectl run --generator=run-pod/v1 hostnet-"${NODES[$index]//\./-}" --labels="fvt-helper=hostnet" --overrides="{\"apiVersion\": \"v1\", \"spec\": {\"hostNetwork\":true, \"nodeSelector\": { \"kubernetes.io/hostname\": \"${NODES[$index]}\" }, \"tolerations\": [{ \"operator\": \"Exists\" }]}}" --image busybox -- /bin/tail -f /dev/null
+    kubectl run --generator=run-pod/v1 hostnet-"${NODES[$index]//\./-}" --labels="fvt-helper=hostnet" --overrides="{\"apiVersion\": \"v1\", \"spec\": {\"hostNetwork\":true, \"nodeSelector\": { \"kubernetes.io/hostname\": \"${NODES[$index]}\" }, \"tolerations\": [{ \"operator\": \"Exists\" }]}}" --image "${image}" -- /bin/tail -f /dev/null
   done
+  local status_ok=false
   for _ in $(seq ${SLEEP_COUNT}); do
     actual=$(kubectl get pods --selector=fvt-helper=hostnet --field-selector=status.phase=Running --no-headers | wc -l)
     expected=$(kubectl get pods --selector=fvt-helper=hostnet --no-headers | wc -l)
     fvtlog "Waiting for hostnet helper pods to come up. Actual: ${actual}, expected: ${expected}"
     if [[ "${actual}" -eq "${expected}" ]]; then
+      status_ok=true
       break
     fi
     sleep ${SLEEP_WAIT_SECONDS}
   done
+  if [[ ${status_ok} == false ]]; then
+    fvtlog "Failed to start hostnet helper pod."
+    return 4
+  fi
 }
 
 delete_hostnet_pods() {
@@ -55,8 +62,33 @@ exec_in_hostnet_of_node() {
 }
 
 get_default_gw() {
-  [[ "${PROVIDER}" == "ibmcloud" ]] && v="10.0.0.0/8" || v="default"
+  if [[ "${PROVIDER}" == "ibmcloud" ]]; then
+    provider_type=$(get_provider_type)
+    [[ ${provider_type} == "softlayer" ]] && v="10.0.0.0/8" || v="default"
+  else
+    v="default"
+  fi
   exec_in_hostnet_of_node "${NODES[0]}" 'ip route' | grep "^${v}.*via.*dev" | awk '{print $3}'
+}
+
+get_provider_type() {
+    local provider_type
+    provider_type=$(kubectl get nodes --no-headers --selector ibm-cloud.kubernetes.io/iaas-provider=softlayer | wc -l)
+    if [[ ${provider_type} != "0" ]]; then
+        echo "softlayer"
+        return
+    fi
+    provider_type=$(kubectl get nodes --no-headers --selector ibm-cloud.kubernetes.io/iaas-provider=gc | wc -l)
+    if [[ ${provider_type} != "0" ]]; then
+        echo "gen1"
+        return
+    fi
+    provider_type=$(kubectl get nodes --no-headers --selector ibm-cloud.kubernetes.io/iaas-provider=g2 | wc -l)
+    if [[ ${provider_type} != "0" ]]; then
+        echo "gen2"
+        return
+    fi
+    echo "Error: provider not found"
 }
 
 # Function to check the CR status
@@ -215,21 +247,22 @@ EOF
   fi
 }
 
-apply_common_operator_resources() {
-  fvtlog "Apply common staticoperator related resources..."
+manage_common_operator_resources() {
+  local action=$1
+  fvtlog "${action^} common staticoperator related resources..."
   declare -a common_resources=('crds/static-route.ibm.com_staticroutes_crd.yaml' 'service_account.yaml' 'role.yaml' 'role_binding.yaml');
   for resource in "${common_resources[@]}"; do
-    kubectl apply -f "${SCRIPT_PATH}"/../deploy/"${resource}"
+    kubectl "${action}" -f "${SCRIPT_PATH}"/../deploy/"${resource}"
   done
 
-  fvtlog "Install the staticroute-operator..."
+  fvtlog "${action^} the staticroute-operator..."
   cp "${SCRIPT_PATH}"/../deploy/operator.yaml "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
   sed -i "s|REPLACE_IMAGE|${REGISTRY_REPO}:${CONTAINER_VERSION}|g" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
   sed -i "s|Always|IfNotPresent|g" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
   if [[ ${IMAGEPULLSECRET} ]]; then
     sed -i "s|hostNetwork: true|&\n      imagePullSecrets:\n      - name: ${IMAGEPULLSECRET}|" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
   fi
-  kubectl apply -f "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
+  kubectl "${action}" -f "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
 }
 
 # Return the first item from the given list

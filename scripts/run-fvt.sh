@@ -15,10 +15,15 @@ IMAGEPULLSECRET="${IMAGEPULLSECRET:-}"
 cleanup() {
   fvtlog "Running cleanup, error code $?"
   delete_hostnet_pods
-  if [[ "${PROVIDER}" == "kind" ]] &&
-     [[ "${KEEP_ENV}" == "false" ]]; then
+  if [[ "${KEEP_ENV}" == "false" ]]; then
+    kubectl delete staticroute --all &>/dev/null
+    if [[ "${SKIP_OPERATOR_INSTALL}" == "false" ]]; then
+      manage_common_operator_resources "delete"
+    fi
+    if [[ "${PROVIDER}" == "kind" ]]; then
       kind delete cluster --name ${KIND_CLUSTER_NAME}
       rm -rf "${SCRIPT_PATH}"/kubeconfig.yaml
+    fi
   fi
 }
 
@@ -42,7 +47,7 @@ fi
 
 # Support for manual install
 if [[ "${SKIP_OPERATOR_INSTALL}" == false ]]; then
-    apply_common_operator_resources
+    manage_common_operator_resources "apply"
 fi
 
 # Get all the worker nodes
