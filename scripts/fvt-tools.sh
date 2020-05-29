@@ -14,10 +14,14 @@ update_node_list() {
 }
 
 pick_non_master_node() {
-  for index in ${!NODES[*]}
-  do
-    kubectl get no "${NODES[$index]}" --show-labels | grep 'node-role.kubernetes.io/master=' > /dev/null && continue || echo -ne "${NODES[$index]}"; break
-  done
+  if [[ "${PROVIDER}" == "ibmcloud" ]]; then
+    echo -ne "${NODES[0]}"
+  else
+    for index in ${!NODES[*]}
+    do
+      kubectl get no "${NODES[$index]}" --show-labels | grep 'node-role.kubernetes.io/master=' > /dev/null && continue || echo -ne "${NODES[$index]}"; break
+    done
+  fi
 }
 
 create_hostnet_pods() {

@@ -17,6 +17,8 @@
 package main
 
 import (
+	"net/http"
+
 	iksv1 "github.com/IBM/staticroute-operator/pkg/apis/iks/v1"
 	"github.com/IBM/staticroute-operator/pkg/routemanager"
 	openapi_v2 "github.com/googleapis/gnostic/OpenAPIv2"
@@ -30,7 +32,6 @@ import (
 	"k8s.io/client-go/rest"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
-	"net/http"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -88,9 +89,6 @@ type mockCallbacks struct {
 	getConfigCalled                bool
 	newManagerCalled               bool
 	addToSchemeCalled              bool
-	serveCRMetricsCalled           bool
-	createMetricsServiceCalled     bool
-	createServiceMonitorsCalled    bool
 	newKubernetesConfigCalled      bool
 	newRouterManagerCalled         bool
 	addStaticRouteControllerCalled bool
