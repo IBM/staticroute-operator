@@ -199,7 +199,7 @@ else
   fvtlog "Test subnet protection"
   if [[ "${PROTECTED_SUBNET_TEST1}" && "${PROTECTED_SUBNET_TEST2}" ]]
   then
-    kubectl get ds staticroute-operator -n"$(get_sr_pod_ns)" -oyaml | \
+    kubectl get ds staticroute-operator -nkube-system -oyaml | \
       sed "s|env:|env:\n        - name: PROTECTED_SUBNET_TEST1\n          value: ${PROTECTED_SUBNET_TEST1}\n        - name: PROTECTED_SUBNET_TEST2\n          value: ${PROTECTED_SUBNET_TEST2}|"\
       | kubectl apply -f -
 
