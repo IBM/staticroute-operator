@@ -25,10 +25,9 @@ pick_non_master_node() {
 }
 
 create_hostnet_pods() {
-  [[ "${PROVIDER}" == "ibmcloud" ]] && image="us.icr.io/armada-master/busybox:1.30.1" || image="busybox"
   for index in ${!NODES[*]}
   do
-    kubectl run --generator=run-pod/v1 hostnet-"${NODES[$index]//\./-}" --labels="fvt-helper=hostnet" --overrides="{\"apiVersion\": \"v1\", \"spec\": {\"hostNetwork\":true, \"nodeSelector\": { \"kubernetes.io/hostname\": \"${NODES[$index]}\" }, \"tolerations\": [{ \"operator\": \"Exists\" }]}}" --image "${image}" -- /bin/tail -f /dev/null
+    kubectl run --generator=run-pod/v1 hostnet-"${NODES[$index]//\./-}" --labels="fvt-helper=hostnet" --overrides="{\"apiVersion\": \"v1\", \"spec\": {\"hostNetwork\":true, \"nodeSelector\": { \"kubernetes.io/hostname\": \"${NODES[$index]}\" }, \"tolerations\": [{ \"operator\": \"Exists\" }]}}" --image busybox -- /bin/tail -f /dev/null
   done
   local status_ok=false
   for _ in $(seq ${SLEEP_COUNT}); do
