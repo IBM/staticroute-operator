@@ -3,7 +3,6 @@ module github.com/IBM/staticroute-operator
 go 1.13
 
 require (
-	github.com/coreos/prometheus-operator v0.34.0
 	github.com/go-openapi/spec v0.19.4
 	github.com/googleapis/gnostic v0.3.1
 	github.com/operator-framework/operator-sdk v0.15.1
