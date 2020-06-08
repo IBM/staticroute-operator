@@ -52,11 +52,12 @@ var log = logf.Log.WithName("controller_staticroute")
 
 // ManagerOptions contains static route management related node properties
 type ManagerOptions struct {
-	RouteManager     routemanager.RouteManager
-	Hostname         string
-	Table            int
-	ProtectedSubnets []*net.IPNet
-	GetGw            func(net.IP) (net.IP, error)
+	RouteManager             routemanager.RouteManager
+	Hostname                 string
+	Table                    int
+	ProtectedSubnets         []*net.IPNet
+	FallbackIPForGwSelection net.IP
+	GetGw                    func(net.IP) (net.IP, error)
 }
 
 // ReconcileStaticRoute reconciles a StaticRoute object
@@ -308,7 +309,7 @@ func selectGateway(params reconcileImplParams, rw routeWrapper, logger types.Log
 			return gatewayNotDirectlyRoutableError, gateway, nil
 		}
 	} else {
-		defaultGateway, err := params.options.GetGw(net.IP{10, 0, 0, 1})
+		defaultGateway, err := params.options.GetGw(params.options.FallbackIPForGwSelection)
 		if err != nil {
 			logger.Error(err, "")
 			return routeGetError, nil, err

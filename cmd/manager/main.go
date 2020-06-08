@@ -54,6 +54,7 @@ import (
 // Change below variables to serve metrics on different host or port.
 var (
 	defaultRouteTable = 254
+	defaultFallbackIP = net.IP{10, 0, 0, 1}
 )
 var log = logf.Log.WithName("cmd")
 
@@ -191,6 +192,16 @@ func mainImpl(params mainImplParams) {
 	}
 	params.logger.Info("Table selected", "value", table)
 
+	fallbackIP := defaultFallbackIP
+	fallbackIPEnv := params.getEnv("FALLBACK_IP_FOR_GW_SELECTION")
+	if len(fallbackIPEnv) != 0 {
+		fallbackIP = net.ParseIP(fallbackIPEnv)
+		if fallbackIP == nil || strings.Contains(fallbackIPEnv, ":") {
+			panic("Environment variable parse error: FALLBACK_IP_FOR_GW_SELECTION.")
+		}
+	}
+	params.logger.Info("Fallback IP for gateway selection:", "value", fallbackIP)
+
 	protectedSubnets := collectProtectedSubnets(params.osEnv())
 
 	crdFound := false
@@ -208,11 +219,12 @@ func mainImpl(params mainImplParams) {
 
 		// Start static route controller
 		if err := params.addStaticRouteController(mgr, staticroute.ManagerOptions{
-			Hostname:         hostname,
-			Table:            table,
-			ProtectedSubnets: protectedSubnets,
-			RouteManager:     routeManager,
-			GetGw:            params.getGw,
+			Hostname:                 hostname,
+			Table:                    table,
+			ProtectedSubnets:         protectedSubnets,
+			FallbackIPForGwSelection: fallbackIP,
+			RouteManager:             routeManager,
+			GetGw:                    params.getGw,
 		}); err != nil {
 			panic(err)
 		}

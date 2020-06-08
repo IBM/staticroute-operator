@@ -64,7 +64,7 @@ func TestMainImplTargetTableOk(t *testing.T) {
 	var actualTable int
 	defer catchError(t)()
 	params, _ := getContextForHappyFlow()
-	params.getEnv = getEnvMock("", "hostname", "42", "")
+	params.getEnv = getEnvMock("", "hostname", "42", "", "")
 	params.addStaticRouteController = func(mgr manager.Manager, options staticroute.ManagerOptions) error {
 		actualTable = options.Table
 		return nil
@@ -102,6 +102,24 @@ func TestMainImplProtectedSubnetsOk(t *testing.T) {
 	}
 	if fmt.Sprintf("%v", expectedSubnets) != fmt.Sprintf("%v", actualSubnets) {
 		t.Errorf("Protected subnets are not match %v != %v", expectedSubnets, actualSubnets)
+	}
+}
+
+func TestMainImplFallbackIPOk(t *testing.T) {
+	var actualFallbackIP net.IP
+	expectedFallbackIP := net.IP{192, 168, 1, 1}
+	defer catchError(t)()
+	params, _ := getContextForHappyFlow()
+	params.getEnv = getEnvMock("", "hostname", "42", "", expectedFallbackIP.String())
+	params.addStaticRouteController = func(mgr manager.Manager, options staticroute.ManagerOptions) error {
+		actualFallbackIP = options.FallbackIPForGwSelection
+		return nil
+	}
+
+	mainImpl(*params)
+
+	if !expectedFallbackIP.Equal(actualFallbackIP) {
+		t.Errorf("Invalid fallback IP detected %s != %s", expectedFallbackIP.String(), actualFallbackIP.String())
 	}
 }
 
@@ -147,7 +165,7 @@ func TestMainImplAddToSchemeFails(t *testing.T) {
 func TestMainImplHostnameMissing(t *testing.T) {
 	defer validateRecovery(t, "Missing environment variable: NODE_HOSTNAME")()
 	params, _ := getContextForHappyFlow()
-	params.getEnv = getEnvMock("", "", "", "")
+	params.getEnv = getEnvMock("", "", "", "", "")
 
 	mainImpl(*params)
 
@@ -157,7 +175,7 @@ func TestMainImplHostnameMissing(t *testing.T) {
 func TestMainImplTargetTableInvalid(t *testing.T) {
 	defer validateRecovery(t, "Unable to parse custom table 'TARGET_TABLE=invalid-table' strconv.Atoi: parsing \"invalid-table\": invalid syntax")()
 	params, _ := getContextForHappyFlow()
-	params.getEnv = getEnvMock("", "hostname", "invalid-table", "")
+	params.getEnv = getEnvMock("", "hostname", "invalid-table", "", "")
 
 	mainImpl(*params)
 
@@ -167,7 +185,7 @@ func TestMainImplTargetTableInvalid(t *testing.T) {
 func TestMainImplTargetTableFewer(t *testing.T) {
 	defer validateRecovery(t, "Target table must be between 0 and 254 'TARGET_TABLE=-1'")()
 	params, _ := getContextForHappyFlow()
-	params.getEnv = getEnvMock("", "hostname", "-1", "")
+	params.getEnv = getEnvMock("", "hostname", "-1", "", "")
 
 	mainImpl(*params)
 
@@ -177,7 +195,7 @@ func TestMainImplTargetTableFewer(t *testing.T) {
 func TestMainImplTargetTableGreater(t *testing.T) {
 	defer validateRecovery(t, "Target table must be between 0 and 254 'TARGET_TABLE=255'")()
 	params, _ := getContextForHappyFlow()
-	params.getEnv = getEnvMock("", "hostname", "255", "")
+	params.getEnv = getEnvMock("", "hostname", "255", "", "")
 
 	mainImpl(*params)
 
@@ -190,6 +208,26 @@ func TestMainImplProtectedSubnetsInvalid(t *testing.T) {
 	params.osEnv = osEnvMock([]string{
 		"PROTECTED_SUBNET_MYNET=987.654.321.012",
 	})
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplFallbackIPInvalid(t *testing.T) {
+	defer validateRecovery(t, "Environment variable parse error: FALLBACK_IP_FOR_GW_SELECTION.")()
+	params, _ := getContextForHappyFlow()
+	params.getEnv = getEnvMock("", "hostname", "", "", "invalid-ip")
+
+	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestMainImplFallbackIPv6Provided(t *testing.T) {
+	defer validateRecovery(t, "Environment variable parse error: FALLBACK_IP_FOR_GW_SELECTION.")()
+	params, _ := getContextForHappyFlow()
+	params.getEnv = getEnvMock("", "hostname", "", "", "1:2:3:4:5::6")
 
 	mainImpl(*params)
 
@@ -278,7 +316,7 @@ func getContextForHappyFlow() (*mainImplParams, *mockCallbacks) {
 	callbacks := mockCallbacks{}
 	return &mainImplParams{
 		logger: mockLogger{},
-		getEnv: getEnvMock("", "hostname", "", ""),
+		getEnv: getEnvMock("", "hostname", "", "", ""),
 		osEnv:  osEnvMock([]string{}),
 		getConfig: func() (*rest.Config, error) {
 			callbacks.getConfigCalled = true
