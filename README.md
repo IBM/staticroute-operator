@@ -1,6 +1,6 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/IBM/staticroute-operator)](https://goreportcard.com/report/github.com/IBM/staticroute-operator) [![Active](http://img.shields.io/badge/Status-Active-green.svg)](https://github.com/IBM/staticroute-operator) [![PR's Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)](https://github.com/IBM/staticroute-operator/pulls) [![Build Status](https://travis-ci.com/IBM/staticroute-operator.svg?branch=master)](https://travis-ci.com/IBM/staticroute-operator) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Code of Conduct](https://img.shields.io/badge/code%20of-conduct-ff69b4.svg?style=flat)](https://www.ibm.com/partnerworld/program/code-of-conduct) 
 
-# staticroute-operator
+# static-route-operator
 Static IP route operator for Kubernetes clusters
 
 This project is under development, use it on your own risk please.
@@ -18,7 +18,7 @@ Route a subnet across the default gateway.
 apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
-  name: example-staticroute
+  name: example-static-route
 spec:
   subnet: "192.168.0.0/24"
 ```
@@ -28,7 +28,7 @@ Route a subnet to the custom gateway.
 apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
-  name: example-staticroute
+  name: example-static-route
 spec:
   subnet: "192.168.0.0/24"
   gateway: "10.0.0.1"
@@ -39,7 +39,7 @@ Selecting target node(s) of the static route by label(s):
 apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
-  name: example-staticroute-with-selector
+  name: example-static-route-with-selector
 spec:
   subnet: "192.168.1.0/24"
   selectors:
@@ -67,7 +67,7 @@ The following components are needed to be installed on your environment:
   * Operator SDK CLI (more information: https://github.com/operator-framework/operator-sdk/blob/master/doc/user/install-operator-sdk.md)
   * and access to a Kubernetes cluster on a version v1.12.0 or newer
   * before you run any of the make target below, make sure the following are done:
-    - export `REGISTRY_REPO` environment variable to your docker registry repo url (ie.: quay.io/example/staticroute-operator:v0.0.1)
+    - export `REGISTRY_REPO` environment variable to your docker registry repo url (ie.: quay.io/example/static-route-operator:v0.0.1)
     - export `KUBECONFIG` environment variable to the path of kubeconfig file (if not set, default $$HOME/.kube/config will be used)
     - login to your docker registry using your credentials (ie.: docker login... , ibmcloud cr login etc.)
 
