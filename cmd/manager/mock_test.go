@@ -40,7 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
-func getEnvMock(metricsNS, nodeHostName, targetTable, protectedSubnets string) func(string) string {
+func getEnvMock(metricsNS, nodeHostName, targetTable, protectedSubnets, fallbackIP string) func(string) string {
 	return func(key string) string {
 		switch key {
 		case "METRICS_NS":
@@ -51,6 +51,8 @@ func getEnvMock(metricsNS, nodeHostName, targetTable, protectedSubnets string) f
 			return targetTable
 		case "PROTECTED_SUBNETS":
 			return protectedSubnets
+		case "FALLBACK_IP_FOR_GW_SELECTION":
+			return fallbackIP
 		default:
 			return ""
 		}

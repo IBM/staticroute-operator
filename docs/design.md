@@ -46,8 +46,8 @@ In order to avoid user error (i.e. lock-out and/or isolate the node(s)), there s
 ### Route table selection
 One may want to manage the subject IP routes in a way that they are created in a custom route table, instead of the default. This is useful when the default route table is managed by some other network management solution. By default, the main routing table is used.
 
-### Fall-back subnet for gateway selection
-When CR omits the IP of the gateway, the controller is able to dynamically detect the GW which is used on the nodes, though this is not guaranteed to work in all cases. The detection is based on a subnet specified by this option. By default it is `10.0.0.0/8`.
+### Fall-back IP for gateway selection
+When CR omits the IP of the gateway, the controller is able to dynamically detect the GW which is used on the nodes, though this is not guaranteed to work in all cases. The detection is based on an IP address specified by this option. By default it is `10.0.0.1`.
 
 ### Tamper reaction
 TODO: decide if this is needed. The option might set whether the destroyed route shall be recreated (with a timeout) or only the reporting of the problem is needed.

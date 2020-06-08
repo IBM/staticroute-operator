@@ -54,6 +54,7 @@ spec:
 
  * Routing table: By default static route controller uses #254 table to configure static routes. The table number is configurable by giving a valid number between 0 and 254 as `TARGET_TABLE` environment variable. Changing the target table on a running operator is not supported. You have to properly terminate all the existing static routes by deleting the custom resources before restarting the operator with the new config.
  * Protect subnets: Static route operator allows to set any subnet as routing destination. In some cases users can break the entire network by mistake. To protect some of the subnets you can use a comma separated list in environment variables starting with the string `PROTECTED_SUBNET_` (ie. `PROTECTED_SUBNET_CALICO=172.0.0.1/24,10.0.0.1/24`). The operator will ignore custom route if the subnets (in the custom resource and the protected list) are overlapping each other.
+ * Fallback IP address for GW selection: if the gateway parameter is not provided in any CR, static route operator will select the gateway based on a predefined IP address (NOT CIDR). The address can be provided via an environment variable: `FALLBACK_IP_FOR_GW_SELECTION`. If the environment variable is not provided for the operator, it will use `10.0.0.1` as a default value.
 
 # Development
 
