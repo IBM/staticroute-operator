@@ -1,7 +1,7 @@
 apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
-  name: example-staticroute-with-selector
+  name: example-static-route-with-selector
 spec:
   subnet: "192.168.1.0/24"
   selectors:

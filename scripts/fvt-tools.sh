@@ -95,7 +95,7 @@ get_provider_type() {
 # - CR name
 # - Node name (optional, valid values: all_nodes_shall_post_status/nodes_shall_not_post_status/specific node)
 # - Error string to check (default is empty)
-check_staticroute_crd_status() {
+check_static_route_crd_status() {
   set +e
   local cr=$1
   local match_node="${2:-all_nodes_shall_post_status}"
@@ -152,12 +152,12 @@ check_staticroute_crd_status() {
   fvtlog "Passed: ${cr} status is updated and contains the expected values."
 }
 
-# Function to check the staticroute-operator pods are all running
+# Function to check the static-route-operator pods are all running
 check_operator_is_running() {
   set +e
   local reached_expected_count=false
   for _ in $(seq ${SLEEP_COUNT}); do
-    number_of_pods_not_running=$(kubectl get pods -A --selector name=staticroute-operator --no-headers | grep -vc Running)
+    number_of_pods_not_running=$(kubectl get pods -A --selector name=static-route-operator --no-headers | grep -vc Running)
     if [[ $number_of_pods_not_running -eq 0 ]]; then
       reached_expected_count=true
       break
@@ -167,7 +167,7 @@ check_operator_is_running() {
   done
   set -e
   if [[ $reached_expected_count == false ]]; then
-    fvtlog "Failed to get running status for the staticroute-operator pods. Could it pull its image?"
+    fvtlog "Failed to get running status for the static-route-operator pods. Could it pull its image?"
     return 2
   fi
 }
@@ -248,13 +248,13 @@ EOF
 
 manage_common_operator_resources() {
   local action=$1
-  fvtlog "${action^} common staticoperator related resources..."
+  fvtlog "${action^} common static-route-operator related resources..."
   declare -a common_resources=('crds/static-route.ibm.com_staticroutes_crd.yaml' 'service_account.yaml' 'role.yaml' 'role_binding.yaml');
   for resource in "${common_resources[@]}"; do
     kubectl "${action}" -f "${SCRIPT_PATH}"/../deploy/"${resource}"
   done
 
-  fvtlog "${action^} the staticroute-operator..."
+  fvtlog "${action^} the static-route-operator..."
   cp "${SCRIPT_PATH}"/../deploy/operator.yaml "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
   sed -i "s|REPLACE_IMAGE|${REGISTRY_REPO}:${CONTAINER_VERSION}|g" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
   sed -i "s|Always|IfNotPresent|g" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
