@@ -6,7 +6,7 @@ os: ["linux"]
 dist: bionic
 
 go:
-- "1.13.5"
+- "1.13.7"
 
 git:
     depth: 9999
