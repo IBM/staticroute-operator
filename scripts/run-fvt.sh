@@ -71,6 +71,9 @@ fvtlog "OK"
 # Choose a node to test selector case
 A_NODE=$(pick_non_master_node)
 
+echo "${A_NODE}"
+kubectl get po -A
+
 # Get default gateway on selected node
 GW=$(get_default_gw "${A_NODE}")
 fvtlog "Nodes: ${NODES[*]}"
