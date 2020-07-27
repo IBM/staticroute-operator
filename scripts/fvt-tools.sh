@@ -63,10 +63,9 @@ exec_in_hostnet_of_node() {
 get_default_gw() {
   local nodename=$1
   if [[ "${PROVIDER}" == "ibmcloud" ]]; then
-    provider_type=$(get_provider_type)
-    [[ ${provider_type} == "softlayer" ]] && v="10.0.0.0/8" || v="default"
+    echo "127.0.0.1"
   else
-    v="default"
+    exec_in_hostnet_of_node "${NODES[0]}" 'ip route' | grep "^default.*via.*dev" | awk '{print $3}'
   fi
   exec_in_hostnet_of_node "${nodename}" 'ip route' | grep "^${v}.*via.*dev" | awk '{print $3}'
 }
