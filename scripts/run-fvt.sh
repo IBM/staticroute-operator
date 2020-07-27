@@ -71,14 +71,16 @@ fvtlog "OK"
 # Choose a node to test selector case
 A_NODE=$(pick_non_master_node)
 
-# Get default gateway
-GW=$(get_default_gw)
+# Get default gateway on selected node
+GW=$(get_default_gw "${A_NODE}")
 fvtlog "Nodes: ${NODES[*]}"
 fvtlog "Choosing Gateway: ${GW}"
 fvtlog "Choosing K8s node as selector tests: ${A_NODE}"
 
 fvtlog "Start applying static-route configurations"
-cat <<EOF | kubectl apply -f -
+
+if [[ ${PROVIDER} == "kind" ]]; then
+  cat <<EOF | kubectl apply -f -
 apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
@@ -93,7 +95,10 @@ metadata:
 spec:
   subnet: "192.168.1.0/24"
   gateway: "${GW}"
----
+EOF
+fi
+
+cat <<EOF | kubectl apply -f -
 apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
@@ -109,15 +114,21 @@ spec:
 EOF
 
 fvtlog "Check if the static-route CRs have valid nodeStatus..."
-check_static_route_crd_status "example-static-route-simple"
-check_static_route_crd_status "example-static-route-with-gateway"
+
+if [[ ${PROVIDER} == "kind" ]]; then
+  check_static_route_crd_status "example-static-route-simple"
+  check_static_route_crd_status "example-static-route-with-gateway"
+fi
+
 check_static_route_crd_status "example-static-route-with-selector" "${A_NODE}"
 
-fvtlog "Test example-static-route-simple - Check that all workers have applied the route to 192.168.0.0/24"
-check_route_on_nodes "192.168.0.0/24 via ${GW}"
+if [[ ${PROVIDER} == "kind" ]]; then
+  fvtlog "Test example-static-route-simple - Check that all workers have applied the route to 192.168.0.0/24"
+  check_route_on_nodes "192.168.0.0/24 via ${GW}"
 
-fvtlog "Test example-static-route-with-gateway - Check that all workers have applied the route to 192.168.1.0/24 with the defined next-hop address"
-check_route_on_nodes "192.168.1.0/24 via ${GW}"
+  fvtlog "Test example-static-route-with-gateway - Check that all workers have applied the route to 192.168.1.0/24 with the defined next-hop address"
+  check_route_on_nodes "192.168.1.0/24 via ${GW}"
+fi
 
 fvtlog "Test example-static-route-with-selector - Check that only ${A_NODE} has applied the route to 192.168.2.0/24"
 for index in ${!NODES[*]}
@@ -167,10 +178,13 @@ fi
 
 update_node_list
 fvtlog "Test static-route deletion - routes must be deleted"
-kubectl delete staticroute example-static-route-simple
-check_route_on_nodes "192.168.0.0/24 via ${GW}" "all" "negative"
-kubectl delete staticroute example-static-route-with-gateway
-check_route_on_nodes "192.168.1.0/24 via ${GW}" "all" "negative"
+if [[ ${PROVIDER} == "kind" ]]; then
+  kubectl delete staticroute example-static-route-simple
+  check_route_on_nodes "192.168.0.0/24 via ${GW}" "all" "negative"
+  kubectl delete staticroute example-static-route-with-gateway
+  check_route_on_nodes "192.168.1.0/24 via ${GW}" "all" "negative"
+fi
+
 kubectl delete staticroute example-static-route-with-selector
 check_route_on_nodes "192.168.2.0/24 via ${GW}" "all" "negative"
 
@@ -237,8 +251,9 @@ EOF
   kubectl delete staticroute example-static-route-protected-subnet1 example-static-route-protected-subnet2
 fi
 
-fvtlog "Test static-route when selector does not apply - nodes do not have the label, status shall be empty"
-cat <<EOF | kubectl apply -f -
+if [[ ${PROVIDER} == "kind" ]]; then
+  fvtlog "Test static-route when selector does not apply - nodes do not have the label, status shall be empty"
+  cat <<EOF | kubectl apply -f -
 apiVersion: static-route.ibm.com/v1
 kind: StaticRoute
 metadata:
@@ -253,8 +268,9 @@ spec:
       values:
         - zone02
 EOF
-check_static_route_crd_status "example-static-route-no-match" "nodes_shall_not_post_status"
-check_route_on_nodes "192.168.0.0/24 via ${GW}" "all" "negative"
-kubectl delete staticroute example-static-route-no-match
+  check_static_route_crd_status "example-static-route-no-match" "nodes_shall_not_post_status"
+  check_route_on_nodes "192.168.0.0/24 via ${GW}" "all" "negative"
+  kubectl delete staticroute example-static-route-no-match
+fi
 
 fvtlog "All tests passed!"
