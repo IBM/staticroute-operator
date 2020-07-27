@@ -72,7 +72,7 @@ fvtlog "OK"
 A_NODE=$(pick_non_master_node)
 
 # Get default gateway on selected node
-GW=$(get_default_gw ${A_NODE})
+GW=$(get_default_gw "${A_NODE}")
 fvtlog "Nodes: ${NODES[*]}"
 fvtlog "Choosing Gateway: ${GW}"
 fvtlog "Choosing K8s node as selector tests: ${A_NODE}"
