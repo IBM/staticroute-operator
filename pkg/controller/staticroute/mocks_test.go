@@ -71,15 +71,19 @@ func (m reconcileImplClientMock) Status() client.StatusWriter {
 }
 
 type statusWriterMock struct {
-	updateErr error
-	patchErr  error
+	updateCounter int
+	patchCounter  int
+	updateErr     error
+	patchErr      error
 }
 
-func (m statusWriterMock) Update(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+func (m *statusWriterMock) Update(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+	m.updateCounter = m.updateCounter + 1
 	return m.updateErr
 }
 
-func (m statusWriterMock) Patch(context.Context, runtime.Object, client.Patch, ...client.PatchOption) error {
+func (m *statusWriterMock) Patch(context.Context, runtime.Object, client.Patch, ...client.PatchOption) error {
+	m.patchCounter = m.patchCounter + 1
 	return m.patchErr
 }
 

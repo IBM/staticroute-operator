@@ -162,6 +162,53 @@ func TestReconcileImplUpdated(t *testing.T) {
 	}
 }
 
+func TestReconcileImplUpdatedDoubleReconcile(t *testing.T) {
+	route := newStaticRouteWithValues(true, false)
+	route.Status = iksv1.StaticRouteStatus{
+		NodeStatus: []iksv1.StaticRouteNodeStatus{
+			iksv1.StaticRouteNodeStatus{
+				Hostname: "hostname",
+				State: iksv1.StaticRouteSpec{
+					Subnet:  "11.1.1.1/16",
+					Gateway: "10.0.0.1",
+				},
+			},
+		},
+	}
+	params, mock := getReconcileContextForDoubleReconcile(route, true)
+
+	res, err := reconcileImpl(*params)
+
+	if res != updateFinished {
+		t.Error("Result must be updateFinished")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+
+	patchCounterBefore := mock.statusWriteMock.(*statusWriterMock).patchCounter
+	updateCounterBefore := mock.statusWriteMock.(*statusWriterMock).updateCounter
+	res, err = reconcileImpl(*params)
+	patchCounterAfter := mock.statusWriteMock.(*statusWriterMock).patchCounter
+	updateCounterAfter := mock.statusWriteMock.(*statusWriterMock).updateCounter
+
+	if patchCounterBefore != patchCounterAfter {
+		t.Errorf("Status should not be patched for the second reconciliation. Before: %d, after: %d", patchCounterBefore, patchCounterAfter)
+	}
+
+	if updateCounterBefore != updateCounterAfter {
+		t.Errorf("Status should not be updated for the second reconciliation. Before: %d, after: %d", updateCounterBefore, updateCounterAfter)
+	}
+
+	if res != finished {
+		t.Error("Result must be finished")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+
+}
+
 func TestReconcileImplNodeSelectorMissingOp(t *testing.T) {
 	route := newStaticRouteWithValues(true, false)
 	route.Spec.Selectors = []metav1.LabelSelectorRequirement{metav1.LabelSelectorRequirement{
@@ -349,7 +396,7 @@ func TestReconcileImplDeletedButCantDeleteStatus(t *testing.T) {
 	mockClient.postfixGet = func(obj runtime.Object) {
 		obj.(*iksv1.StaticRoute).SetDeletionTimestamp(&v1.Time{})
 	}
-	mockClient.statusWriteMock = statusWriterMock{
+	mockClient.statusWriteMock = &statusWriterMock{
 		updateErr: errors.New("Couldn't update status"),
 	}
 
@@ -428,7 +475,7 @@ func TestReconcileImplIsNotRegisteredButCantRegister(t *testing.T) {
 func TestReconcileImplIsRegisteredButCantAddStatus(t *testing.T) {
 	params, mockClient := getReconcileContextForAddFlow(nil, true)
 	params.options.Hostname = "hostname2"
-	mockClient.statusWriteMock = statusWriterMock{
+	mockClient.statusWriteMock = &statusWriterMock{
 		updateErr: errors.New("Couldn't update status"),
 	}
 
@@ -524,6 +571,26 @@ func getReconcileContextForAddFlow(route *iksv1.StaticRoute, isRegistered bool) 
 	}
 	mockClient := reconcileImplClientMock{
 		client: newFakeClient(route),
+	}
+	params := newReconcileImplParams(&mockClient)
+	params.options.Hostname = "hostname"
+	params.options.RouteManager = routeManagerMock{
+		isRegistered: isRegistered,
+	}
+	params.options.GetGw = func(net.IP) (net.IP, error) {
+		return nil, nil
+	}
+
+	return params, &mockClient
+}
+
+func getReconcileContextForDoubleReconcile(route *iksv1.StaticRoute, isRegistered bool) (*reconcileImplParams, *reconcileImplClientMock) {
+	if route == nil {
+		route = newStaticRouteWithValues(true, true)
+	}
+	mockClient := reconcileImplClientMock{
+		client:          newFakeClient(route),
+		statusWriteMock: &statusWriterMock{},
 	}
 	params := newReconcileImplParams(&mockClient)
 	params.options.Hostname = "hostname"
