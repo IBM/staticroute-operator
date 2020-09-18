@@ -186,18 +186,30 @@ func TestReconcileImplUpdatedDoubleReconcile(t *testing.T) {
 		t.Errorf("Error must be nil: %s", err.Error())
 	}
 
+	res, err = reconcileImpl(*params)
+	if res != finished {
+		t.Error("Result must be finished")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+
 	patchCounterBefore := mock.statusWriteMock.(*statusWriterMock).patchCounter
 	updateCounterBefore := mock.statusWriteMock.(*statusWriterMock).updateCounter
-	res, err = reconcileImpl(*params)
+	_, _ = reconcileImpl(*params)
+	_, _ = reconcileImpl(*params)
+	_, _ = reconcileImpl(*params)
+	_, _ = reconcileImpl(*params)
+	_, _ = reconcileImpl(*params)
 	patchCounterAfter := mock.statusWriteMock.(*statusWriterMock).patchCounter
 	updateCounterAfter := mock.statusWriteMock.(*statusWriterMock).updateCounter
 
 	if patchCounterBefore != patchCounterAfter {
-		t.Errorf("Status should not be patched for the second reconciliation. Before: %d, after: %d", patchCounterBefore, patchCounterAfter)
+		t.Errorf("Status should not be patched for the third (or more) reconciliation. Before: %d, after: %d", patchCounterBefore, patchCounterAfter)
 	}
 
 	if updateCounterBefore != updateCounterAfter {
-		t.Errorf("Status should not be updated for the second reconciliation. Before: %d, after: %d", updateCounterBefore, updateCounterAfter)
+		t.Errorf("Status should not be updated for the third (or more) reconciliation. Before: %d, after: %d", updateCounterBefore, updateCounterAfter)
 	}
 
 	if res != finished {
@@ -588,9 +600,10 @@ func getReconcileContextForDoubleReconcile(route *iksv1.StaticRoute, isRegistere
 	if route == nil {
 		route = newStaticRouteWithValues(true, true)
 	}
+	client := newFakeClient(route)
 	mockClient := reconcileImplClientMock{
-		client:          newFakeClient(route),
-		statusWriteMock: &statusWriterMock{},
+		client:          client,
+		statusWriteMock: &statusWriterMock{client: client},
 	}
 	params := newReconcileImplParams(&mockClient)
 	params.options.Hostname = "hostname"

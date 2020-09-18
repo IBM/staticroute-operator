@@ -81,6 +81,19 @@ func (rw *routeWrapper) getGateway() net.IP {
 	return net.ParseIP(gateway)
 }
 
+func (rw *routeWrapper) statusMatch(hostname string, gateway net.IP, err error) bool {
+	errText := ""
+	if err != nil {
+		errText = err.Error()
+	}
+	for _, val := range rw.instance.Status.NodeStatus {
+		if val.Hostname == hostname && val.State.Subnet == rw.instance.Spec.Subnet && val.State.Gateway == gateway.String() && val.Error == errText {
+			return true
+		}
+	}
+	return false
+}
+
 func (rw *routeWrapper) addToStatus(hostname string, gateway net.IP, err error) bool {
 	// Update the status if necessary
 	for _, val := range rw.instance.Status.NodeStatus {
