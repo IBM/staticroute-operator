@@ -232,13 +232,15 @@ func reconcileImpl(params reconcileImplParams) (res *reconcile.Result, err error
 		default:
 			serr = err
 		}
-		_ = rw.removeFromStatus(params.options.Hostname)
-		if rw.addToStatus(params.options.Hostname, gateway, serr) {
-			reqLogger.Info("Update the StaticRoute status", "staticroute", rw.instance.Status)
-			if cerr := params.client.Status().Update(context.Background(), rw.instance); cerr != nil {
-				reqLogger.Error(err, "failed to update the staticroute")
-				res = addStatusUpdateError
-				err = cerr
+		if !rw.statusMatch(params.options.Hostname, gateway, serr) {
+			_ = rw.removeFromStatus(params.options.Hostname)
+			if rw.addToStatus(params.options.Hostname, gateway, serr) {
+				reqLogger.Info("Update the StaticRoute status", "staticroute", rw.instance.Status)
+				if cerr := params.client.Status().Update(context.Background(), rw.instance); cerr != nil {
+					reqLogger.Error(err, "failed to update the staticroute")
+					res = addStatusUpdateError
+					err = cerr
+				}
 			}
 		}
 	}()
