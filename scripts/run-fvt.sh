@@ -214,7 +214,7 @@ else
   if [[ "${PROTECTED_SUBNET_TEST1}" && "${PROTECTED_SUBNET_TEST2}" ]]
   then
     kubectl get ds static-route-operator -nkube-system -oyaml | \
-      sed "s|env:|env:\n        - name: PROTECTED_SUBNET_TEST1\n          value: ${PROTECTED_SUBNET_TEST1}\n        - name: PROTECTED_SUBNET_TEST2\n          value: ${PROTECTED_SUBNET_TEST2}|" > operator.yaml
+      sed "s|- env:|- env:\n        - name: PROTECTED_SUBNET_TEST1\n          value: ${PROTECTED_SUBNET_TEST1}\n        - name: PROTECTED_SUBNET_TEST2\n          value: ${PROTECTED_SUBNET_TEST2}|" > operator.yaml
       cat operator.yaml
       kubectl apply -f operator.yaml
 
