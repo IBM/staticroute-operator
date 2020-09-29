@@ -6,7 +6,7 @@ os: ["linux"]
 dist: bionic
 
 go:
-- "1.13.7"
+- "1.15.2"
 
 git:
     depth: 9999
@@ -25,7 +25,7 @@ services:
 - docker
 
 before_install:
-- sudo make deps
+- sudo INSTALL_LOCATION="" make deps
 
 after_failure:
 - echo "Job failed, check the output above"

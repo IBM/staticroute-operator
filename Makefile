@@ -6,6 +6,7 @@ GOLANGCI_LINT_EXISTS:=$(shell golangci-lint --version 2>/dev/null)
 GIT_COMMIT_SHA:=$(shell git rev-parse HEAD 2>/dev/null)
 SHFILES=$(shell find . -type f -name '*fvt*.sh')
 SHELLCHECK_EXISTS:=$(shell shellcheck --version 2>/dev/null)
+INSTALL_LOCATION?=$(GOPATH)/bin
 
 include Makefile.env
 
