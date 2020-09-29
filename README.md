@@ -61,11 +61,11 @@ spec:
 ## Prerequisites
 The following components are needed to be installed on your environment:
   * git
-  * go 1.13+
+  * go 1.15+
   * docker
   * kubectl v1.12.0 or newer
   * golangci-lint v1.23.6
-  * Operator SDK CLI (more information: https://github.com/operator-framework/operator-sdk/blob/master/doc/user/install-operator-sdk.md)
+  * Operator SDK CLI 0.15.1 (more information: https://github.com/operator-framework/operator-sdk/blob/master/doc/user/install-operator-sdk.md)
   * and access to a Kubernetes cluster on a version v1.12.0 or newer
   * before you run any of the make target below, make sure the following are done:
     - export `REGISTRY_REPO` environment variable to your docker registry repo url (ie.: quay.io/example/static-route-operator:v0.0.1)
