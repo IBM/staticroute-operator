@@ -1,5 +1,5 @@
 GO111MODULE:=on
-DOCKER_BUILDKIT=1
+export DOCKER_BUILDKIT=1
 GO_PACKAGES=$(shell go list ./... | grep -v /tests/)
 GO_FILES=$(shell find . -type f -name '*.go' -not -path "./.git/*")
 GOLANGCI_LINT_EXISTS:=$(shell golangci-lint --version 2>/dev/null)
