@@ -20,8 +20,8 @@ spec:
         image: REPLACE_IMAGE
         imagePullPolicy: Always
         securityContext:
-          runAsUser: 10001
-          runAsGroup: 10001
+          runAsUser: 2000
+          runAsGroup: 2000
           capabilities:
             add:
             - NET_ADMIN
