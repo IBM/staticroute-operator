@@ -11,7 +11,7 @@ spec:
       labels:
         name: static-route-operator
     spec:
-      serviceAccountName: static-route-operator 
+      serviceAccountName: static-route-operator
       hostNetwork: true
       tolerations:
       - operator: Exists
