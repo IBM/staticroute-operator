@@ -3,9 +3,11 @@ export DOCKER_BUILDKIT=1
 GO_PACKAGES=$(shell go list ./... | grep -v /tests/)
 GO_FILES=$(shell find . -type f -name '*.go' -not -path "./.git/*")
 GOLANGCI_LINT_EXISTS:=$(shell golangci-lint --version 2>/dev/null)
+GOSEC_EXISTS:=$(shell gosec --version 2>/dev/null)
 GIT_COMMIT_SHA:=$(shell git rev-parse HEAD 2>/dev/null)
 SHFILES=$(shell find . -type f -name '*fvt*.sh')
 SHELLCHECK_EXISTS:=$(shell shellcheck --version 2>/dev/null)
+YAMLLINT_EXISTS:=$(shell yamllint --version 2>/dev/null)
 INSTALL_LOCATION?=$(GOPATH)/bin
 
 include Makefile.env
@@ -22,6 +24,7 @@ _deps-linux:
 	curl -sL https://github.com/kubernetes-sigs/kind/releases/download/v${KIND_VERSION}/kind-linux-amd64 > ${INSTALL_LOCATION}/kind
 	curl -sL https://storage.googleapis.com/kubernetes-release/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl > ${INSTALL_LOCATION}/kubectl
 	chmod +x ${INSTALL_LOCATION}/operator-sdk ${INSTALL_LOCATION}/kind ${INSTALL_LOCATION}/kubectl
+	curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s -- -b ${INSTALL_LOCATION} v${GOSEC_VERSION}
 
 _calculate-build-number:
     $(eval export CONTAINER_VERSION?=$(GIT_COMMIT_SHA)-$(shell date "+%s"))
@@ -40,6 +43,13 @@ else
 	@echo "shellcheck is not installed"
 endif
 
+lint-yaml:
+ifdef YAMLLINT_EXISTS
+	yamllint .travis.yml ./deploy/
+else
+	@echo "yamllint is not installed"
+endif
+
 formatcheck:
 	([ -z "$(shell gofmt -d $(GO_FILES))" ]) || (echo "Source is unformatted, please execute make format"; exit 1)
 
@@ -52,6 +62,13 @@ coverage:
 vet:
 	go vet ${GO_PACKAGES}
 
+sec:
+ifdef GOSEC_EXISTS
+	gosec -quiet ${GO_FILES}
+else
+	@echo "gosec is not installed"
+endif
+
 test:
 	go test -race -timeout 60s -covermode=atomic -coverprofile=cover.out ${GO_PACKAGES}
 
@@ -60,7 +77,7 @@ fvt: _calculate-build-number build-operator
 	$(eval export REGISTRY_REPO?=$(REGISTRY_REPO))
 	@scripts/run-fvt.sh
 
-validate-code: lint lint-sh formatcheck vet test
+validate-code: lint lint-sh lint-yaml formatcheck vet sec test
 
 update-operator-resource:
 	operator-sdk generate crds

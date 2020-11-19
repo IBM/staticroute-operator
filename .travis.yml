@@ -14,32 +14,36 @@ git:
 cache:
   bundler: true
   directories:
-    - $GOPATH/pkg/mod/cache/download
+  - $GOPATH/pkg/mod/cache/download
   timeout: 3600
 
 addons:
   apt:
     update: true
+    packages:
+    - python3-pip
 
 services:
 - docker
 
 before_install:
+- sudo pip3 --quiet install yamllint
 - sudo make deps
 
 after_failure:
 - echo "Job failed, check the output above"
 
+before_script:
+- export REGISTRY_URL=$(echo "${DOCKER_REGISTRY_LIST}" | tr ',' ' ' | cut -d' ' -f1)
+- export REGISTRY_REPO=${REGISTRY_URL}/${DOCKER_IMAGE_NAME}
+
 script:
-  - |
-    export REGISTRY_URL=$(echo "${DOCKER_REGISTRY_LIST}" | tr ',' ' ' | cut -d' ' -f1)
-    export REGISTRY_REPO=${REGISTRY_URL}/${DOCKER_IMAGE_NAME}
-    make fvt || travis_terminate 1
-  
+- make fvt || travis_terminate 1
+
 deploy:
-  - provider: script
-    script: bash scripts/travis-provider-script.sh
-    skip_cleanup: true
-    on:
-      all_branches: true
-      condition: $TRAVIS_BRANCH =~ ^(release-*)$
+- provider: script
+  script: bash scripts/travis-provider-script.sh
+  skip_cleanup: true
+  on:
+    all_branches: true
+    condition: $TRAVIS_BRANCH =~ ^(release-*)$

@@ -5,8 +5,8 @@ metadata:
 spec:
   subnet: "192.168.1.0/24"
   selectors:
-    - 
+    -
       key: "kubernetes.io/arch"
       operator: In
-      values: 
+      values:
         - "amd64"
