@@ -1,5 +1,4 @@
-ARG REPOSITORY
-FROM ${REPOSITORY}debian:stretch AS builder
+FROM debian:stretch AS builder
 
 RUN apt-get update && apt-get install -y libcap2-bin
 
@@ -7,7 +6,7 @@ COPY build/_output/bin/staticroute-operator /staticroute-operator
 RUN setcap cap_net_admin+ep /staticroute-operator
 RUN chmod go+x /staticroute-operator
 
-FROM ${REPOSITORY}scratch
+FROM scratch
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
 COPY --from=builder /staticroute-operator /staticroute-operator
