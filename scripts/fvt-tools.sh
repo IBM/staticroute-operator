@@ -66,7 +66,7 @@ get_default_gw() {
   if [[ "${PROVIDER}" == "ibmcloud" ]] && [[ "$(get_provider_type)" == "softlayer" ]]; then
     v="10.0.0.0/8"
   fi
-  exec_in_hostnet_of_node "${nodename}" 'ip route' | grep "^${v}.*via.*dev" | awk '{print $3}'
+  exec_in_hostnet_of_node "${nodename}" 'ip route' | grep "^${v}.*via.*dev" | tail -1 | awk '{print $3}'
 }
 
 get_provider_type() {
