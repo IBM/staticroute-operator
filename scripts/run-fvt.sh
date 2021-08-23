@@ -196,10 +196,10 @@ metadata:
   name: example-static-route-with-wrong-gateway
 spec:
   subnet: "192.168.0.0/24"
-  gateway: "172.18.0.1"
+  gateway: "1.2.3.4"
 EOF
 check_static_route_crd_status "example-static-route-with-wrong-gateway" "all_nodes_shall_post_status" "Given gateway IP is not directly routable, cannot setup the route"
-check_route_on_nodes "192.168.0.0/24 via 172.18.0.1" "all" "negative"
+check_route_on_nodes "192.168.0.0/24 via 1.2.3.4" "all" "negative"
 kubectl delete staticroute example-static-route-with-wrong-gateway
 
 if [[ "${PROVIDER}" == "kind" ]]; then
