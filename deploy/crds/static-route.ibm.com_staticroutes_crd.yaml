@@ -12,10 +12,6 @@ spec:
   scope: Cluster
   versions:
   - name: v1
-    served: true
-    storage: true
-    subresources:
-      status: {}
     schema:
       openAPIV3Schema:
         description: StaticRoute is the Schema for the staticroutes API
@@ -48,7 +44,8 @@ spec:
                     values, a key, and an operator that relates the key and values.
                   properties:
                     key:
-                      description: key is the label key that the selector applies to.
+                      description: key is the label key that the selector applies
+                        to.
                       type: string
                     operator:
                       description: operator represents a key's relationship to a set
@@ -56,9 +53,10 @@ spec:
                       type: string
                     values:
                       description: values is an array of string values. If the operator
-                        is In or NotIn, the values array must be non-empty. If the operator
-                        is Exists or DoesNotExist, the values array must be empty. This
-                        array is replaced during a strategic merge patch.
+                        is In or NotIn, the values array must be non-empty. If the
+                        operator is Exists or DoesNotExist, the values array must
+                        be empty. This array is replaced during a strategic merge
+                        patch.
                       items:
                         type: string
                       type: array
@@ -84,8 +82,8 @@ spec:
                   code after modifying this file Add custom validation using kubebuilder
                   tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html'
                 items:
-                  description: StaticRouteNodeStatus defines the observed state of one
-                    IKS node, related to the StaticRoute
+                  description: StaticRouteNodeStatus defines the observed state of
+                    one IKS node, related to the StaticRoute
                   properties:
                     error:
                       type: string
@@ -117,11 +115,11 @@ spec:
                                   Exists and DoesNotExist.
                                 type: string
                               values:
-                                description: values is an array of string values. If
-                                  the operator is In or NotIn, the values array must
-                                  be non-empty. If the operator is Exists or DoesNotExist,
-                                  the values array must be empty. This array is replaced
-                                  during a strategic merge patch.
+                                description: values is an array of string values.
+                                  If the operator is In or NotIn, the values array
+                                  must be non-empty. If the operator is Exists or
+                                  DoesNotExist, the values array must be empty. This
+                                  array is replaced during a strategic merge patch.
                                 items:
                                   type: string
                                 type: array
@@ -148,3 +146,7 @@ spec:
             - nodeStatus
             type: object
         type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
