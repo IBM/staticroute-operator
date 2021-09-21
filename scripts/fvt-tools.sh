@@ -27,7 +27,7 @@ pick_non_master_node() {
 create_hostnet_pods() {
   for index in ${!NODES[*]}
   do
-    kubectl run --generator=run-pod/v1 hostnet-"${NODES[$index]//\./-}" --labels="fvt-helper=hostnet" --overrides="{\"apiVersion\": \"v1\", \"spec\": {\"hostNetwork\":true, \"nodeSelector\": { \"kubernetes.io/hostname\": \"${NODES[$index]}\" }, \"tolerations\": [{ \"operator\": \"Exists\" }]}}" --image busybox -- /bin/tail -f /dev/null
+    kubectl run hostnet-"${NODES[$index]//\./-}" --labels="fvt-helper=hostnet" --overrides="{\"apiVersion\": \"v1\", \"spec\": {\"hostNetwork\":true, \"nodeSelector\": { \"kubernetes.io/hostname\": \"${NODES[$index]}\" }, \"tolerations\": [{ \"operator\": \"Exists\" }]}}" --image busybox -- /bin/tail -f /dev/null
   done
   local status_ok=false
   for _ in $(seq ${SLEEP_COUNT}); do
@@ -232,7 +232,7 @@ create_kind_cluster() {
 
   fvtlog "Creating Kubernetes cluster with kind"
   if [[ "$(kind get clusters -q | grep -c "${KIND_CLUSTER_NAME}")" != 1 ]]; then
-    cat <<EOF | kind create cluster --name "${KIND_CLUSTER_NAME}" --config=-
+    cat <<EOF | kind create cluster --name "${KIND_CLUSTER_NAME}" --image="${KIND_IMAGE_VERSION}" -v 1 --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
@@ -248,19 +248,19 @@ EOF
 manage_common_operator_resources() {
   local action=$1
   fvtlog "${action^} common static-route-operator related resources..."
-  declare -a common_resources=('crds/static-route.ibm.com_staticroutes_crd.yaml' 'service_account.yaml' 'role.yaml' 'role_binding.yaml');
+  declare -a common_resources=('crd/bases/static-route.ibm.com_staticroutes.yaml' 'rbac/service_account.yaml' 'rbac/role.yaml' 'rbac/role_binding.yaml');
   for resource in "${common_resources[@]}"; do
-    kubectl "${action}" -f "${SCRIPT_PATH}"/../deploy/"${resource}"
+    kubectl "${action}" -f "${SCRIPT_PATH}"/../config/"${resource}"
   done
 
   fvtlog "${action^} the static-route-operator..."
-  cp "${SCRIPT_PATH}"/../deploy/operator.yaml "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
-  sed -i "s|REPLACE_IMAGE|${REGISTRY_REPO}:${CONTAINER_VERSION}|g" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
-  sed -i "s|Always|IfNotPresent|g" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
+  cp "${SCRIPT_PATH}"/../config/manager/manager.yaml "${SCRIPT_PATH}"/../config/manager/manager.dev.yaml
+  sed -i "s|REPLACE_IMAGE|${REGISTRY_REPO}:${CONTAINER_VERSION}|g" "${SCRIPT_PATH}"/../config/manager/manager.dev.yaml
+  sed -i "s|Always|IfNotPresent|g" "${SCRIPT_PATH}"/../config/manager/manager.dev.yaml
   if [[ ${IMAGEPULLSECRET} ]]; then
-    sed -i "s|hostNetwork: true|&\n      imagePullSecrets:\n      - name: ${IMAGEPULLSECRET}|" "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
+    sed -i "s|hostNetwork: true|&\n      imagePullSecrets:\n      - name: ${IMAGEPULLSECRET}|" "${SCRIPT_PATH}"/../config/manager/manager.dev.yaml
   fi
-  kubectl "${action}" -f "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
+  kubectl "${action}" -f "${SCRIPT_PATH}"/../config/manager/manager.dev.yaml
 }
 
 # Return the first item from the given list

@@ -1,6 +1,5 @@
-# Temporary Build Files
-build/_output
-build/_test
+# Temporary Binary Files
+bin/
 # Created by https://www.gitignore.io/api/go,vim,emacs,visualstudiocode
 ### Emacs ###
 # -*- mode: gitignore; -*-
@@ -75,3 +74,6 @@ tags
 .vscode/*
 .history
 # End of https://www.gitignore.io/api/go,vim,emacs,visualstudiocode
+
+scripts/kubeconfig.yaml
+config/manager/manager.dev.yaml

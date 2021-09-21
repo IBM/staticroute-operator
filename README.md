@@ -8,7 +8,7 @@ This project is under development, use it on your own risk please.
 # Usage
 
 Public OCI images are not available yet. To give a try to the project you have to build your own image and store it in your image repository. Please follow some easy steps under `Development` section of the page.
-After build you have to apply some Kubernetes manifests: `deploy/crds/static-route.ibm.com_staticroutes_crd.yaml`, `deploy/service_account.yaml`, `deploy/role.yaml`, `deploy/role_binding.yaml` and `deploy/operator.dev.yaml`.
+After build you have to apply some Kubernetes manifests: `config/crd/bases/static-route.ibm.com_staticroutes_crd.yaml`, `config/rbac/service_account.yaml`, `config/rbac/role.yaml`, `config/rbac/role_binding.yaml` and `config/rbac/operator.dev.yaml`.
 Finaly you have to create `StaticRoute` custom resource on the cluster. The operator will pick it up and creates underlaying routing policies based on the given resource.
 
 ## Sample custom resources
@@ -61,12 +61,13 @@ spec:
 ## Prerequisites
 The following components are needed to be installed on your environment:
   * git
-  * go 1.15+
+  * go 1.16+
   * docker
-  * kubectl v1.12.0 or newer
+  * kubectl v1.19.0 or newer
+  * KinD v0.11.1 (for testing)
   * golangci-lint v1.23.6
-  * Operator SDK CLI 0.15.1 (more information: https://github.com/operator-framework/operator-sdk/blob/master/doc/user/install-operator-sdk.md)
-  * and access to a Kubernetes cluster on a version v1.12.0 or newer
+  * Operator SDK CLI 1.11.0 (more information: https://sdk.operatorframework.io/docs/installation/)
+  * and access to a Kubernetes cluster on a version v1.19.0 or newer
   * before you run any of the make target below, make sure the following are done:
     - export `REGISTRY_REPO` environment variable to your docker registry repo url (ie.: quay.io/example/static-route-operator:v0.0.1)
     - export `KUBECONFIG` environment variable to the path of kubeconfig file (if not set, default $$HOME/.kube/config will be used)
@@ -74,7 +75,7 @@ The following components are needed to be installed on your environment:
 
 
 ## Updating the Custom Resource Definitions (CRDs)
-Make sure, that every time you modify anything in `*_types.go` file, run the `make update-operator-resource` to update generated code for `k8s` and `CRDs`.
+Make sure, that every time you modify anything in `*_types.go` file, run the `make generate` (DeepCopy, DeepCopyInto, and DeepCopyObject...) and `make manifests` (WebhookConfiguration, ClusterRole and CustomResourceDefinition...) to update generated code for `k8s` and `CRDs`.
 
 ## Building the static route operator
 `make build-operator` target can be used for updating, building operator. It executes all the static code analyzing.

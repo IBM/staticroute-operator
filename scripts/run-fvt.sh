@@ -4,6 +4,7 @@ set -o pipefail
 
 SCRIPT_PATH=$PWD/$(dirname "$0")
 KIND_CLUSTER_NAME="static-route-operator-fvt"
+KIND_IMAGE_VERSION="kindest/node:v1.21.1@sha256:69860bda5563ac81e3c0057d654b5253219618a22ec3a346306239bba8cfa1a6"
 KEEP_ENV="${KEEP_ENV:-false}"
 SKIP_OPERATOR_INSTALL="${SKIP_OPERATOR_INSTALL:-false}"
 PROVIDER="${PROVIDER:-kind}"
@@ -204,11 +205,11 @@ kubectl delete staticroute example-static-route-with-wrong-gateway
 
 if [[ "${PROVIDER}" == "kind" ]]; then
   fvtlog "Test subnet protection (KinD)"
-  sed -i "s|env:|env:\n        - name: PROTECTED_SUBNET_TEST1\n          value: 192.168.1.0\/24,192.168.2.0\/24|" deploy/operator.dev.yaml
-  sed -i "s|env:|env:\n        - name: PROTECTED_SUBNET_TEST2\n          value: 192.168.3.0\/24,192.168.4.0\/24,192.168.5.0\/24|" deploy/operator.dev.yaml
+  sed -i "s|env:|env:\n        - name: PROTECTED_SUBNET_TEST1\n          value: 192.168.1.0\/24,192.168.2.0\/24|" config/manager/manager.dev.yaml
+  sed -i "s|env:|env:\n        - name: PROTECTED_SUBNET_TEST2\n          value: 192.168.3.0\/24,192.168.4.0\/24,192.168.5.0\/24|" config/manager/manager.dev.yaml
   SUBNET1="192.168.1.0/24"
   SUBNET2="192.168.4.0/24"
-  kubectl apply -f "${SCRIPT_PATH}"/../deploy/operator.dev.yaml
+  kubectl apply -f "${SCRIPT_PATH}"/../config/manager/manager.dev.yaml
 else
   fvtlog "Test subnet protection"
   if [[ "${PROTECTED_SUBNET_TEST1}" && "${PROTECTED_SUBNET_TEST2}" ]]
