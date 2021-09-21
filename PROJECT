@@ -1,0 +1,19 @@
+domain: ibm.com
+layout:
+- go.kubebuilder.io/v3
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+projectName: staticroute-operator
+repo: github.com/IBM/staticroute-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: ibm.com
+  group: static-route
+  kind: StaticRoute
+  path: github.com/IBM/staticroute-operator/api/v1
+  version: v1
+version: "3"
