@@ -1,7 +1,7 @@
 GO111MODULE:=on
 export DOCKER_BUILDKIT=1
 GO_PACKAGES=$(shell go list ./... | grep -v /tests/)
-GO_FILES=$(shell find . -type f -name '*.go' -not -path "./.git/*")
+GO_FILES=$(shell find . -type f -name '*.go' -not -path "./.git/*" -not -path "./api/v1/zz_generated*.go")
 GOLANGCI_LINT_EXISTS:=$(shell golangci-lint --version 2>/dev/null)
 GOSEC_EXISTS:=$(shell gosec --version 2>/dev/null)
 GIT_COMMIT_SHA:=$(shell git rev-parse HEAD 2>/dev/null)
@@ -28,7 +28,7 @@ _deps-linux:
 	curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s -- -b ${INSTALL_LOCATION} v${GOSEC_VERSION}
 
 _calculate-build-number:
-    $(eval export CONTAINER_VERSION?=$(GIT_COMMIT_SHA)-$(shell date "+%s"))
+	$(eval export CONTAINER_VERSION?=$(GIT_COMMIT_SHA)-$(shell date "+%s"))
 
 lint:
 ifdef GOLANGCI_LINT_EXISTS
@@ -46,7 +46,9 @@ endif
 
 lint-yaml:
 ifdef YAMLLINT_EXISTS
+ifeq ($(TRAVIS),true)
 	yamllint .travis.yml ./config/
+endif
 else
 	@echo "yamllint is not installed"
 endif

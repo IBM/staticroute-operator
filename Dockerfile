@@ -1,5 +1,6 @@
 # Builder stage
-FROM registry.ci.openshift.org/openshift/release:golang-1.16 as builder
+ARG BUILDER_IMAGE
+FROM $BUILDER_IMAGE as builder
 ENV GO111MODULE=on
 COPY go.mod go.mod
 COPY go.sum go.sum
