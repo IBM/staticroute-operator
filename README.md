@@ -66,14 +66,15 @@ The following components are needed to be installed on your environment:
   * kubectl v1.19.0 or newer
   * KinD v0.11.1 (for testing)
   * golangci-lint v1.23.6
-  * Operator SDK CLI 1.11.0 (more information: https://sdk.operatorframework.io/docs/installation/)
+  * Operator SDK CLI 1.12.0 (more information: https://sdk.operatorframework.io/docs/installation/)
   * and access to a Kubernetes cluster on a version v1.19.0 or newer
   * before you run any of the make target below, make sure the following are done:
     - export `REGISTRY_REPO` environment variable to your docker registry repo url (ie.: quay.io/example/static-route-operator:v0.0.1)
     - export `KUBECONFIG` environment variable to the path of kubeconfig file (if not set, default $$HOME/.kube/config will be used)
     - login to your docker registry using your credentials (ie.: docker login... , ibmcloud cr login etc.)
 
-
+## Changing Go build version
+You can change the builder Go version for Static Route operator in `Makefile.env`. Please note, that since the docker build is done inside separately in a Go builder image (`GO_BUILDER_IMAGE`), you should also change Travis Go version in `.travis.yaml`, to make sure that the Go tests are running on the same Go version as the build.
 ## Updating the Custom Resource Definitions (CRDs)
 Make sure, that every time you modify anything in `*_types.go` file, run the `make generate` (DeepCopy, DeepCopyInto, and DeepCopyObject...) and `make manifests` (WebhookConfiguration, ClusterRole and CustomResourceDefinition...) to update generated code for `k8s` and `CRDs`.
 

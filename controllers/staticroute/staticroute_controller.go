@@ -301,55 +301,6 @@ func (r *StaticRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 
 	return err
-	/*return ctrl.NewControllerManagedBy(mgr).
-	Named("staticroute-controller").
-	For(&staticroutev1.StaticRoute{}).
-	Watches(&source.Kind{Type: &staticroutev1.StaticRoute{}}, &handler.EnqueueRequestForObject{}).
-	Watches(
-		&source.Kind{Type: &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: r.options.Hostname}}},
-		handler.EnqueueRequestsFromMapFunc(
-			func(a client.Object) []reconcile.Request {
-				routes := &staticroutev1.StaticRouteList{}
-				if err := r.client.List(context.Background(), routes); err != nil {
-					log.Error(err, "Failed to List StaticRoute CRs")
-					return nil
-				}
-
-				var result []reconcile.Request
-				for _, route := range routes.Items {
-					result = append(result, reconcile.Request{
-						NamespacedName: k8stypes.NamespacedName{
-							Name:      route.GetName(),
-							Namespace: "",
-						},
-					})
-				}
-				return result
-			},
-		)).
-	WithEventFilter(
-		&predicate.Funcs{
-			CreateFunc: func(e event.CreateEvent) bool {
-				return false
-			},
-			UpdateFunc: func(e event.UpdateEvent) bool {
-				if len(e.ObjectNew.GetLabels()) != len(e.ObjectOld.GetLabels()) {
-					log.Info("Node label amount changed. Submitting all StaticRoute CRs for reconciliation.")
-					return true
-				}
-				for k, v := range e.ObjectOld.GetLabels() {
-					if e.ObjectNew.GetLabels()[k] != v {
-						log.Info("Node labels are changed. Submitting all StaticRoute CRs for reconciliation.")
-						return true
-					}
-				}
-				return false
-			},
-			DeleteFunc: func(e event.DeleteEvent) bool {
-				return false
-			},
-		}).
-	Complete(r)*/
 }
 
 func selectGateway(params reconcileImplParams, rw routeWrapper, logger types.Logger) (*reconcile.Result, net.IP, error) {
