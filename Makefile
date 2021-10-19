@@ -98,13 +98,13 @@ dev-run-operator-remote: dev-publish-image dev-apply-common-resources
 
 dev-apply-common-resources:
 	kubectl create -f config/crd/bases/static-route.ibm.com_staticroutes.yaml || :
-	kubectl create -f config/rbac/service_account.yaml  || :
-	kubectl create -f config/rbac/role.yaml  || :
-	kubectl create -f config/rbac/role_binding.yaml  || :
+	kubectl create -f config/rbac/service_account.yaml || :
+	kubectl create -f config/rbac/role.yaml || :
+	kubectl create -f config/rbac/role_binding.yaml || :
 
 dev-cleanup-operator:
-	kubectl delete -f deploy/crds/static-route.ibm.com_staticroutes_crd.yaml  || :
-	kubectl delete -f config/manager/manager.dev.yaml  || :
-	kubectl delete -f config/rbac/role.yaml  || :
-	kubectl delete -f config/rbac/role_binding.yaml  || :
-	kubectl delete -f config/rbac/service_account.yaml  || :
+	kubectl delete -f config/crd/bases/static-route.ibm.com_staticroutes.yaml || :
+	kubectl delete -f config/manager/manager.dev.yaml || :
+	kubectl delete -f config/rbac/role.yaml || :
+	kubectl delete -f config/rbac/role_binding.yaml || :
+	kubectl delete -f config/rbac/service_account.yaml || :

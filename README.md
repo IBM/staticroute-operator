@@ -8,7 +8,7 @@ This project is under development, use it on your own risk please.
 # Usage
 
 Public OCI images are not available yet. To give a try to the project you have to build your own image and store it in your image repository. Please follow some easy steps under `Development` section of the page.
-After build you have to apply some Kubernetes manifests: `config/crd/bases/static-route.ibm.com_staticroutes_crd.yaml`, `config/rbac/service_account.yaml`, `config/rbac/role.yaml`, `config/rbac/role_binding.yaml` and `config/rbac/operator.dev.yaml`.
+After build you have to apply some Kubernetes manifests: `config/crd/bases/static-route.ibm.com_staticroutes.yaml`, `config/rbac/service_account.yaml`, `config/rbac/role.yaml`, `config/rbac/role_binding.yaml` and `config/manager/manager.dev.yaml`.
 Finaly you have to create `StaticRoute` custom resource on the cluster. The operator will pick it up and creates underlaying routing policies based on the given resource.
 
 ## Sample custom resources
