@@ -27,7 +27,27 @@ pick_non_master_node() {
 create_hostnet_pods() {
   for index in ${!NODES[*]}
   do
-    kubectl run hostnet-"${NODES[$index]//\./-}" --labels="fvt-helper=hostnet" --overrides="{\"apiVersion\": \"v1\", \"spec\": {\"hostNetwork\":true, \"nodeSelector\": { \"kubernetes.io/hostname\": \"${NODES[$index]}\" }, \"tolerations\": [{ \"operator\": \"Exists\" }]}}" --image busybox -- /bin/tail -f /dev/null
+    cat <<EOF | kubectl create -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    fvt-helper: hostnet
+  name: hostnet-${NODES[$index]//\./-}
+  namespace: default
+spec:
+  containers:
+  - image: busybox
+    name: hostnet-${NODES[$index]//\./-}
+    command: ["/bin/tail"]
+    args: ["-f", "/dev/null"]
+  hostNetwork: true
+  nodeSelector:
+    kubernetes.io/hostname: ${NODES[$index]}
+  tolerations:
+  - operator: Exists
+EOF
+# END of EOF ================================
   done
   local status_ok=false
   for _ in $(seq ${SLEEP_COUNT}); do
