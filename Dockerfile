@@ -23,6 +23,7 @@ RUN chmod go+x /staticroute-operator
 
 # Final image
 FROM scratch
+LABEL compliance.owner="dummy-owner-label"
 
 COPY --from=intermediate /staticroute-operator /staticroute-operator
 USER 2000:2000
