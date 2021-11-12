@@ -152,18 +152,18 @@ type nodeFinder struct {
 }
 
 func (nf *nodeFinder) delete(routes *staticroutev1.StaticRouteList) error {
-	for _, route := range routes.Items {
-		statusToDelete := nf.findNode(&route)
+	for i := range routes.Items {
+		statusToDelete := nf.findNode(&routes.Items[i])
 		if statusToDelete == -1 {
 			continue
 		}
 		nf.infoLogger("Found the node to delete")
 
-		copy(route.Status.NodeStatus[statusToDelete:], route.Status.NodeStatus[statusToDelete+1:])
-		route.Status.NodeStatus[len(route.Status.NodeStatus)-1] = staticroutev1.StaticRouteNodeStatus{}
-		route.Status.NodeStatus = route.Status.NodeStatus[:len(route.Status.NodeStatus)-1]
+		copy(routes.Items[i].Status.NodeStatus[statusToDelete:], routes.Items[i].Status.NodeStatus[statusToDelete+1:])
+		routes.Items[i].Status.NodeStatus[len(routes.Items[i].Status.NodeStatus)-1] = staticroutev1.StaticRouteNodeStatus{}
+		routes.Items[i].Status.NodeStatus = routes.Items[i].Status.NodeStatus[:len(routes.Items[i].Status.NodeStatus)-1]
 
-		if err := nf.updateCallback(&route); err != nil {
+		if err := nf.updateCallback(&routes.Items[i]); err != nil {
 			return err
 		}
 	}
