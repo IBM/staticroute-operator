@@ -2,6 +2,7 @@
 ARG BUILDER_IMAGE
 FROM $BUILDER_IMAGE as builder
 ENV GO111MODULE=on
+WORKDIR /
 COPY go.mod go.mod
 COPY go.sum go.sum
 RUN go mod download
