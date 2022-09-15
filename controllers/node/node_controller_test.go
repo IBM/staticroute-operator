@@ -130,7 +130,7 @@ func TestReconcileImpl(t *testing.T) {
 
 func TestReconcileImplNodeGetNodeFound(t *testing.T) {
 	params, mockClient := getReconcileContextForHappyFlow(nil)
-	mockClient.get = func(context.Context, client.ObjectKey, client.Object) error {
+	mockClient.get = func(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
 		return nil
 	}
 
@@ -146,7 +146,7 @@ func TestReconcileImplNodeGetNodeFound(t *testing.T) {
 
 func TestReconcileImplNodeGetNodeFatalError(t *testing.T) {
 	params, mockClient := getReconcileContextForHappyFlow(nil)
-	mockClient.get = func(context.Context, client.ObjectKey, client.Object) error {
+	mockClient.get = func(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
 		return errors.New("fatal error")
 	}
 
@@ -164,7 +164,7 @@ func TestReconcileImplNodeCRListError(t *testing.T) {
 	//err "no kind is registered for the type v1."" because fake client doesn't have CRD
 	params, mockClient := getReconcileContextForHappyFlow(nil)
 	mockClient.client = fake.NewClientBuilder().Build()
-	mockClient.get = func(context.Context, client.ObjectKey, client.Object) error {
+	mockClient.get = func(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
 		return kerrors.NewNotFound(schema.GroupResource{}, "name")
 	}
 
@@ -187,7 +187,7 @@ func TestReconcileDeleteError(t *testing.T) {
 		statusUpdateCalled = true
 		return statusWriteMock
 	})
-	mockClient.get = func(context.Context, client.ObjectKey, client.Object) error {
+	mockClient.get = func(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
 		return kerrors.NewNotFound(schema.GroupResource{}, "name")
 	}
 	mockClient.list = func(ctx context.Context, obj runtime.Object, options ...client.ListOption) error {
@@ -224,7 +224,7 @@ func getReconcileContextForHappyFlow(statusUpdateCallback func() client.StatusWr
 	routes := &staticroutev1.StaticRouteList{}
 	mockClient := reconcileImplClientMock{
 		client: newFakeClient(routes),
-		get: func(context.Context, client.ObjectKey, client.Object) error {
+		get: func(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error {
 			return kerrors.NewNotFound(schema.GroupResource{}, "name")
 		},
 	}

@@ -61,13 +61,13 @@ spec:
 ## Prerequisites
 The following components are needed to be installed on your environment:
   * git
-  * go 1.16+
+  * go 1.18+
   * docker
-  * kubectl v1.19.0 or newer
+  * kubectl v1.22.2 or newer
   * KinD v0.11.1 (for testing)
-  * golangci-lint v1.23.6
-  * Operator SDK CLI 1.12.0 (more information: https://sdk.operatorframework.io/docs/installation/)
-  * and access to a Kubernetes cluster on a version v1.19.0 or newer
+  * golangci-lint v1.49.0
+  * Operator SDK CLI 1.23.0 (more information: https://sdk.operatorframework.io/docs/installation/)
+  * and access to a Kubernetes cluster on a version v1.21.0 or newer
   * before you run any of the make target below, make sure the following are done:
     - export `REGISTRY_REPO` environment variable to your docker registry repo url (ie.: quay.io/example/static-route-operator:v0.0.1)
     - export `KUBECONFIG` environment variable to the path of kubeconfig file (if not set, default $$HOME/.kube/config will be used)
@@ -79,6 +79,7 @@ You can change the builder Go version for Static Route operator in `Makefile.env
 Make sure, that every time you modify anything in `*_types.go` file, run the `make generate` (DeepCopy, DeepCopyInto, and DeepCopyObject...) and `make manifests` (WebhookConfiguration, ClusterRole and CustomResourceDefinition...) to update generated code for `k8s` and `CRDs`.
 
 ## Building the static route operator
+`make deps` it is strongly recommended to run this make target before trying to build the operator.
 `make build-operator` target can be used for updating, building operator. It executes all the static code analyzing.
 `make dev-publish-image` publishes a new build of the operator image into your Docker repository.
 

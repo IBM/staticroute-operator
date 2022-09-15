@@ -93,7 +93,7 @@ func (r *NodeReconciler) Reconcile(ctx context.Context, request reconcile.Reques
 }
 
 type reconcileImplClient interface {
-	Get(context.Context, client.ObjectKey, client.Object) error
+	Get(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error
 	List(context.Context, client.ObjectList, ...client.ListOption) error
 	Status() client.StatusWriter
 }

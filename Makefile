@@ -14,6 +14,7 @@ include Makefile.env
 include Makefile.sdk
 
 deps:
+	GOBIN=${PWD}/bin go install sigs.k8s.io/controller-tools/cmd/controller-gen@v${CONTROLLER_GEN_VERSION}
 	make _deps-$(shell uname | tr '[:upper:]' '[:lower:]')
 
 _deps-darwin:

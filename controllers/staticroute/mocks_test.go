@@ -39,14 +39,14 @@ type reconcileImplClientMock struct {
 	listErr         error
 }
 
-func (m reconcileImplClientMock) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (m reconcileImplClientMock) Get(ctx context.Context, key client.ObjectKey, obj client.Object, options ...client.GetOption) error {
 	if m.getErr != nil {
 		return m.getErr
 	}
 	if m.postfixGet != nil {
 		defer m.postfixGet(obj)
 	}
-	return m.client.Get(ctx, key, obj)
+	return m.client.Get(ctx, key, obj, options...)
 }
 
 func (m reconcileImplClientMock) Update(ctx context.Context, obj client.Object, options ...client.UpdateOption) error {
