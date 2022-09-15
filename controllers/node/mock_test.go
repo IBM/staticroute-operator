@@ -31,16 +31,16 @@ import (
 
 type reconcileImplClientMock struct {
 	client reconcileImplClient
-	get    func(context.Context, client.ObjectKey, client.Object) error
+	get    func(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error
 	list   func(context.Context, runtime.Object, ...client.ListOption) error
 	status func() client.StatusWriter
 }
 
-func (m reconcileImplClientMock) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (m reconcileImplClientMock) Get(ctx context.Context, key client.ObjectKey, obj client.Object, options ...client.GetOption) error {
 	if m.get != nil {
-		return m.get(ctx, key, obj)
+		return m.get(ctx, key, obj, options...)
 	}
-	return m.client.Get(ctx, key, obj)
+	return m.client.Get(ctx, key, obj, options...)
 }
 
 func (m reconcileImplClientMock) List(ctx context.Context, obj client.ObjectList, options ...client.ListOption) error {

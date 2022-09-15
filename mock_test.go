@@ -23,7 +23,7 @@ import (
 	staticroutev1 "github.com/IBM/staticroute-operator/api/v1"
 	"github.com/IBM/staticroute-operator/pkg/routemanager"
 	"github.com/go-logr/logr"
-	openapi_v2 "github.com/googleapis/gnostic/openapiv2"
+	openapi_v2 "github.com/google/gnostic/openapiv2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/discovery"
+	openapiclient "k8s.io/client-go/openapi"
 	"k8s.io/client-go/rest"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
@@ -164,7 +165,7 @@ func (m mockManager) GetWebhookServer() *webhook.Server {
 }
 
 func (m mockManager) GetLogger() logr.Logger {
-	return nil
+	return logr.Logger{}
 }
 
 func (m mockManager) GetControllerOptions() ctrlv1alpha1.ControllerConfigurationSpec {
@@ -237,6 +238,10 @@ type mockDiscovery struct {
 
 func (m mockDiscovery) OpenAPISchema() (*openapi_v2.Document, error) {
 	return nil, nil
+}
+
+func (m mockDiscovery) OpenAPIV3() openapiclient.Client {
+	return nil
 }
 
 func (m mockDiscovery) RESTClient() restclient.Interface {

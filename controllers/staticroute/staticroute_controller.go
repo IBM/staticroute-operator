@@ -102,7 +102,7 @@ func (r *StaticRouteReconciler) Reconcile(ctx context.Context, request reconcile
 }
 
 type reconcileImplClient interface {
-	Get(context.Context, client.ObjectKey, client.Object) error
+	Get(context.Context, client.ObjectKey, client.Object, ...client.GetOption) error
 	Update(context.Context, client.Object, ...client.UpdateOption) error
 	List(context.Context, client.ObjectList, ...client.ListOption) error
 	Status() client.StatusWriter
