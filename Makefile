@@ -9,12 +9,13 @@ SHFILES=$(shell find . -type f -name '*fvt*.sh')
 SHELLCHECK_EXISTS:=$(shell shellcheck --version 2>/dev/null)
 YAMLLINT_EXISTS:=$(shell yamllint --version 2>/dev/null)
 INSTALL_LOCATION?=$(GOPATH)/bin
+MAKEFILE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
 include Makefile.env
 include Makefile.sdk
 
 deps:
-	GOBIN=${PWD}/bin go install sigs.k8s.io/controller-tools/cmd/controller-gen@v${CONTROLLER_GEN_VERSION}
+	GOBIN=${MAKEFILE_DIR}/bin go install sigs.k8s.io/controller-tools/cmd/controller-gen@v${CONTROLLER_GEN_VERSION}
 	make _deps-$(shell uname | tr '[:upper:]' '[:lower:]')
 
 _deps-darwin:
