@@ -20,19 +20,19 @@ import (
 	"net"
 )
 
-//Route structure represents just-enough data to manage IP routes from user code
+// Route structure represents just-enough data to manage IP routes from user code
 type Route struct {
 	Dst   net.IPNet
 	Gw    net.IP
 	Table int
 }
 
-//RouteWatcher is a user-implemented interface, where RouteManager will call back if a managed route is damaged
+// RouteWatcher is a user-implemented interface, where RouteManager will call back if a managed route is damaged
 type RouteWatcher interface {
 	RouteDeleted(Route)
 }
 
-//RouteManager is the main interface, which is implemented by the package
+// RouteManager is the main interface, which is implemented by the package
 type RouteManager interface {
 	//IsRegistered returns true if a Route (by it's name) is already managed
 	IsRegistered(string) bool
