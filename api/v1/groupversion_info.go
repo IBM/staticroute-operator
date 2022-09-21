@@ -15,8 +15,8 @@
 //
 
 // Package v1 contains API Schema definitions for the static-route v1 API group
-//+kubebuilder:object:generate=true
-//+groupName=static-route.ibm.com
+// +kubebuilder:object:generate=true
+// +groupName=static-route.ibm.com
 package v1
 
 import (

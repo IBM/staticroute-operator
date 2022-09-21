@@ -28,7 +28,7 @@ type routeWrapper struct {
 	instance *staticroutev1.StaticRoute
 }
 
-//addFinalizer will add this attribute to the CR
+// addFinalizer will add this attribute to the CR
 func (rw *routeWrapper) setFinalizer() bool {
 	if len(rw.instance.GetFinalizers()) != 0 {
 		return false

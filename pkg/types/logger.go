@@ -16,7 +16,7 @@
 
 package types
 
-//Logger common logging interface
+// Logger common logging interface
 type Logger interface {
 	Info(string, ...interface{})
 	Error(error, string, ...interface{})

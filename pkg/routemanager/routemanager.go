@@ -53,7 +53,7 @@ type routeManagerImplDeRegisterRouteParams struct {
 	err  chan<- error
 }
 
-//New creates a RouteManager for production use. It populates the routeManagerImpl structure with the final pointers to netlink package's functions.
+// New creates a RouteManager for production use. It populates the routeManagerImpl structure with the final pointers to netlink package's functions.
 func New() RouteManager {
 	return &routeManagerImpl{
 		managedRoutes:         make(map[string]Route),
@@ -147,13 +147,16 @@ func (r Route) toNetLinkRoute() netlink.Route {
 	}
 }
 
-/* This version of equal shall be used everywhere in this package.
-   Netlink also does have an Equal function, however if we use that with
-   mixing netlink.Route and routemanager.Route input, it will report false.
-   The reason is that netlink.Route has a lot of additional properties which
-   routemanager.Route doesn't (type, protocol, linkindex, etc.). So we need
-   to convert back and forth the netlink.Route instances before comparing them
-   to zero out the fields which we do not store in this package. */
+/*
+This version of equal shall be used everywhere in this package.
+
+	Netlink also does have an Equal function, however if we use that with
+	mixing netlink.Route and routemanager.Route input, it will report false.
+	The reason is that netlink.Route has a lot of additional properties which
+	routemanager.Route doesn't (type, protocol, linkindex, etc.). So we need
+	to convert back and forth the netlink.Route instances before comparing them
+	to zero out the fields which we do not store in this package.
+*/
 func (r Route) equal(x Route) bool {
 	return r.toNetLinkRoute().Equal(x.toNetLinkRoute())
 }
