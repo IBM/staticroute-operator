@@ -15,9 +15,8 @@ COPY version/ version/
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=mod -a -o /staticroute-operator main.go
 
 # Intermediate stage to apply capabilities
-FROM debian:stretch AS intermediate
+FROM debian:bullseye AS intermediate
 
-RUN echo "deb http://archive.debian.org/debian stretch main" > /etc/apt/sources.list
 RUN apt-get update && apt-get install -y libcap2-bin
 COPY --from=builder /staticroute-operator /staticroute-operator
 RUN setcap cap_net_admin+ep /staticroute-operator
