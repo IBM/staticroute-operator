@@ -31,6 +31,16 @@ after_failure:
 before_script:
 - export REGISTRY_URL=$(echo "${DOCKER_REGISTRY_LIST}" | tr ',' ' ' | cut -d' ' -f1)
 - export REGISTRY_REPO=${REGISTRY_URL}/${DOCKER_IMAGE_NAME}
+- DOCKER_CLI_EXPERIMENTAL=enabled
+- DOCKER_BUILDKIT=1 docker build --help
+- mkdir -p ~/.docker/cli-plugins
+- docker --version
+- wget https://github.com/docker/buildx/releases/download/v0.9.1/buildx-v0.9.1.linux-amd64
+- chmod a+x buildx-v0.9.1.linux-amd64
+- mv buildx-v0.9.1.linux-amd64 ~/.docker/cli-plugins/docker-buildx
+- docker buildx create --use --name multi-builder --platform linux/amd64,linux/s390x
+- docker buildx version
+- docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
 script:
 - make deps
