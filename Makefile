@@ -72,8 +72,8 @@ else
 endif
 
 fvt: _calculate-build-number build-operator
-	docker tag $(REGISTRY_REPO) $(REGISTRY_REPO):$(CONTAINER_VERSION)
-	$(eval export REGISTRY_REPO?=$(REGISTRY_REPO))
+	docker tag $(REGISTRY_REPO)-amd64 $(REGISTRY_REPO)-amd64:$(CONTAINER_VERSION)
+	$(eval export REGISTRY_REPO=$(REGISTRY_REPO)-amd64)
 	@scripts/run-fvt.sh
 
 validate-code: lint lint-sh lint-yaml formatcheck vet sec test
@@ -91,7 +91,7 @@ dev-publish-image: _calculate-build-number build-operator
 
 dev-run-operator-local: dev-apply-common-resources
 	# pick the first node to test run
-	$(eval export NODE_HOSTNAME=$(shell sh -c "kubectl get nodes -o jsonpath='{ $$.items[0].status.addresses[?(@.type==\"Hostname\")].address }'")) 
+	$(eval export NODE_HOSTNAME=$(shell sh -c "kubectl get nodes -o jsonpath='{ $$.items[0].status.addresses[?(@.type==\"Hostname\")].address }'"))
 	make run
 
 dev-run-operator-remote: dev-publish-image dev-apply-common-resources
