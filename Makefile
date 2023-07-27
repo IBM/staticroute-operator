@@ -85,9 +85,9 @@ build-operator: update-operator-resource validate-code
 	make docker-build IMG=$(REGISTRY_REPO)
 
 dev-publish-image: _calculate-build-number build-operator
-	docker tag $(REGISTRY_REPO) $(REGISTRY_REPO):$(CONTAINER_VERSION)
-	docker push $(REGISTRY_REPO):$(CONTAINER_VERSION)
-	@echo "\n image: $(REGISTRY_REPO):$(CONTAINER_VERSION)"
+	docker tag $(REGISTRY_REPO)-amd64 $(REGISTRY_REPO)-amd64:$(CONTAINER_VERSION)-amd64
+	docker push $(REGISTRY_REPO)-amd64:$(CONTAINER_VERSION)-amd64
+	@echo "\n image: $(REGISTRY_REPO)-amd64:$(CONTAINER_VERSION)-amd64"
 
 dev-run-operator-local: dev-apply-common-resources
 	# pick the first node to test run
@@ -95,7 +95,7 @@ dev-run-operator-local: dev-apply-common-resources
 	make run
 
 dev-run-operator-remote: dev-publish-image dev-apply-common-resources
-	cat config/manager/manager.yaml | sed 's|REPLACE_IMAGE|$(REGISTRY_REPO):$(CONTAINER_VERSION)|g' > config/manager/manager.dev.yaml
+	cat config/manager/manager.yaml | sed 's|REPLACE_IMAGE|$(REGISTRY_REPO)-amd64:$(CONTAINER_VERSION)-amd64|g' > config/manager/manager.dev.yaml
 	kubectl create -f config/manager/manager.dev.yaml || :
 
 dev-apply-common-resources:

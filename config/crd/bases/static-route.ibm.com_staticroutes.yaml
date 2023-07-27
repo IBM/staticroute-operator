@@ -15,7 +15,20 @@ spec:
     singular: staticroute
   scope: Cluster
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    - jsonPath: .spec.subnet
+      name: Network
+      priority: 1
+      type: string
+    - description: empty field means default gateway
+      jsonPath: .spec.gateway
+      name: Gateway
+      priority: 1
+      type: string
+    name: v1
     schema:
       openAPIV3Schema:
         description: StaticRoute is the Schema for the staticroutes API
