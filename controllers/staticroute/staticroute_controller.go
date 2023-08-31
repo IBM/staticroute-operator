@@ -41,7 +41,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 var (
@@ -244,7 +243,7 @@ func (r *StaticRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	staticrouteWatcherBuilder := ctrl.NewControllerManagedBy(mgr).Named("staticroute-controller").WithOptions(controller.Options{Reconciler: r})
 	err := staticrouteWatcherBuilder.
 		For(&staticroutev1.StaticRoute{}).
-		Watches(&source.Kind{Type: &staticroutev1.StaticRoute{}}, &handler.EnqueueRequestForObject{}).
+		Watches(&staticroutev1.StaticRoute{}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
 	if err != nil {
 		return err
@@ -255,11 +254,11 @@ func (r *StaticRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	err = nodeWatcherBuilder.
 		For(&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: r.options.Hostname}}).
 		Watches(
-			&source.Kind{Type: &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: r.options.Hostname}}},
+			&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: r.options.Hostname}},
 			handler.EnqueueRequestsFromMapFunc(
-				func(a client.Object) []reconcile.Request {
+				func(ctx context.Context, a client.Object) []reconcile.Request {
 					routes := &staticroutev1.StaticRouteList{}
-					if err := r.client.List(context.Background(), routes); err != nil {
+					if err := r.client.List(ctx, routes); err != nil {
 						log.Error(err, "Failed to List StaticRoute CRs")
 						return nil
 					}
@@ -269,7 +268,7 @@ func (r *StaticRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 						result = append(result, reconcile.Request{
 							NamespacedName: k8stypes.NamespacedName{
 								Name:      route.GetName(),
-								Namespace: "",
+								Namespace: route.GetNamespace(),
 							},
 						})
 					}
@@ -366,6 +365,7 @@ func validateNodeBySelector(params reconcileImplParams, rw *routeWrapper, logger
 
 func deleteOperation(params reconcileImplParams, rw *routeWrapper, logger types.Logger) (*reconcile.Result, error) {
 	logger.Info("Deregistering route")
+	rw.instance.DeletionTimestamp = nil
 	err := params.options.RouteManager.DeRegisterRoute(params.request.Name)
 	if err != nil && err != routemanager.ErrNotFound {
 		logger.Error(err, "Unable to deregister route")

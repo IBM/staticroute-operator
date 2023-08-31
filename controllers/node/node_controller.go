@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 var log = logf.Log.WithName("controller_node")
@@ -51,7 +50,7 @@ func (r *NodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("node-controller").
 		For(&corev1.Node{}).
-		Watches(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{}).
+		Watches(&corev1.Node{}, &handler.EnqueueRequestForObject{}).
 		WithEventFilter(
 			&predicate.Funcs{
 				CreateFunc: func(e event.CreateEvent) bool {

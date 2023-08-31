@@ -153,9 +153,7 @@ func mainImpl(params mainImplParams) {
 
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := params.newManager(cfg, manager.Options{
-		Namespace:          "",
-		MapperProvider:     apiutil.NewDiscoveryRESTMapper,
-		MetricsBindAddress: "0",
+		MapperProvider: apiutil.NewDiscoveryRESTMapper,
 	})
 	if err != nil {
 		panic(err)
