@@ -23,7 +23,7 @@ import (
 	staticroutev1 "github.com/IBM/staticroute-operator/api/v1"
 	"github.com/IBM/staticroute-operator/pkg/routemanager"
 	"github.com/go-logr/logr"
-	openapi_v2 "github.com/google/gnostic/openapiv2"
+	openapi_v2 "github.com/google/gnostic-models/openapiv2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,7 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	ctrlv1alpha1 "sigs.k8s.io/controller-runtime/pkg/config/v1alpha1"
+	ctrlcfg "sigs.k8s.io/controller-runtime/pkg/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -140,6 +140,10 @@ func (m mockManager) GetClient() client.Client {
 	return newFakeClient()
 }
 
+func (m mockManager) GetHTTPClient() *http.Client {
+	return nil
+}
+
 func (m mockManager) GetFieldIndexer() client.FieldIndexer {
 	return nil
 }
@@ -160,7 +164,7 @@ func (m mockManager) GetAPIReader() client.Reader {
 	return nil
 }
 
-func (m mockManager) GetWebhookServer() *webhook.Server {
+func (m mockManager) GetWebhookServer() webhook.Server {
 	return nil
 }
 
@@ -168,8 +172,8 @@ func (m mockManager) GetLogger() logr.Logger {
 	return logr.Logger{}
 }
 
-func (m mockManager) GetControllerOptions() ctrlv1alpha1.ControllerConfigurationSpec {
-	return ctrlv1alpha1.ControllerConfigurationSpec{}
+func (m mockManager) GetControllerOptions() ctrlcfg.Controller {
+	return ctrlcfg.Controller{}
 }
 
 func (m mockManager) AddHealthzCheck(string, healthz.Checker) error {
@@ -274,4 +278,8 @@ func (m mockDiscovery) ServerPreferredNamespacedResources() ([]*metav1.APIResour
 
 func (m mockDiscovery) ServerVersion() (*version.Info, error) {
 	return nil, nil
+}
+
+func (m mockDiscovery) WithLegacy() discovery.DiscoveryInterface {
+	return nil
 }

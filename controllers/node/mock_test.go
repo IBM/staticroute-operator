@@ -58,15 +58,20 @@ func (m reconcileImplClientMock) Status() client.StatusWriter {
 }
 
 type statusWriterMock struct {
+	createErr error
 	updateErr error
 	patchErr  error
 }
 
-func (m statusWriterMock) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+func (m statusWriterMock) Create(ctx context.Context, obj, subResource client.Object, opts ...client.SubResourceCreateOption) error {
+	return m.createErr
+}
+
+func (m statusWriterMock) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
 	return m.updateErr
 }
 
-func (m statusWriterMock) Patch(context.Context, client.Object, client.Patch, ...client.PatchOption) error {
+func (m statusWriterMock) Patch(context.Context, client.Object, client.Patch, ...client.SubResourcePatchOption) error {
 	return m.patchErr
 }
 

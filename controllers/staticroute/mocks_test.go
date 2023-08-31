@@ -72,13 +72,23 @@ func (m reconcileImplClientMock) Status() client.StatusWriter {
 
 type statusWriterMock struct {
 	client        client.Client
+	createCounter int
 	updateCounter int
 	patchCounter  int
+	createErr     error
 	updateErr     error
 	patchErr      error
 }
 
-func (m *statusWriterMock) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+func (m *statusWriterMock) Create(ctx context.Context, obj client.Object, subResource client.Object, createOption ...client.SubResourceCreateOption) error {
+	m.createCounter = m.createCounter + 1
+	if m.client != nil {
+		return m.client.Status().Create(ctx, obj, subResource, createOption...)
+	}
+	return m.createErr
+}
+
+func (m *statusWriterMock) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
 	m.updateCounter = m.updateCounter + 1
 	if m.client != nil {
 		return m.client.Status().Update(ctx, obj, opts...)
@@ -86,7 +96,7 @@ func (m *statusWriterMock) Update(ctx context.Context, obj client.Object, opts .
 	return m.updateErr
 }
 
-func (m *statusWriterMock) Patch(ctx context.Context, obj client.Object, patch client.Patch, patchOption ...client.PatchOption) error {
+func (m *statusWriterMock) Patch(ctx context.Context, obj client.Object, patch client.Patch, patchOption ...client.SubResourcePatchOption) error {
 	m.patchCounter = m.patchCounter + 1
 	if m.client != nil {
 		return m.client.Status().Patch(ctx, obj, patch, patchOption...)
@@ -131,7 +141,11 @@ func newFakeClient(route *staticroutev1.StaticRoute) client.Client {
 	s.AddKnownTypes(staticroutev1.GroupVersion, route)
 	nodes := &corev1.NodeList{}
 	s.AddKnownTypes(corev1.SchemeGroupVersion, nodes)
-	return fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects([]runtime.Object{route}...).Build()
+	return fake.NewClientBuilder().
+		WithScheme(s).
+		WithStatusSubresource(route).
+		WithRuntimeObjects([]runtime.Object{route}...).
+		Build()
 }
 
 func newReconcileImplParams(client reconcileImplClient) *reconcileImplParams {
@@ -149,6 +163,10 @@ func newReconcileImplParams(client reconcileImplClient) *reconcileImplParams {
 
 func newStaticRouteWithValues(withSpec, withStatus bool) *staticroutev1.StaticRoute {
 	route := staticroutev1.StaticRoute{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "StaticRoute",
+			APIVersion: "static-route.ibm.com/v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "CR",
 			Namespace: "default",
