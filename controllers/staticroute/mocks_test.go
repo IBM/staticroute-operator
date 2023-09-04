@@ -33,7 +33,6 @@ import (
 type reconcileImplClientMock struct {
 	client          reconcileImplClient
 	statusWriteMock client.StatusWriter
-	postfixGet      func(runtime.Object)
 	getErr          error
 	updateErr       error
 	listErr         error
@@ -43,9 +42,7 @@ func (m reconcileImplClientMock) Get(ctx context.Context, key client.ObjectKey, 
 	if m.getErr != nil {
 		return m.getErr
 	}
-	if m.postfixGet != nil {
-		defer m.postfixGet(obj)
-	}
+
 	return m.client.Get(ctx, key, obj, options...)
 }
 

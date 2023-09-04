@@ -34,7 +34,6 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -240,8 +239,7 @@ func reconcileImpl(params reconcileImplParams) (res *reconcile.Result, err error
 // SetupWithManager sets up the controller with the Manager.
 func (r *StaticRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Watch for changes to primary resource StaticRoute
-	staticrouteWatcherBuilder := ctrl.NewControllerManagedBy(mgr).Named("staticroute-controller").WithOptions(controller.Options{Reconciler: r})
-	err := staticrouteWatcherBuilder.
+	err := ctrl.NewControllerManagedBy(mgr).Named("staticroute-controller").
 		For(&staticroutev1.StaticRoute{}).
 		Watches(&staticroutev1.StaticRoute{}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
@@ -250,8 +248,7 @@ func (r *StaticRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	// Watch if the self node labels are changed, so reconcile every route
-	nodeWatcherBuilder := ctrl.NewControllerManagedBy(mgr).Named("staticroute-controller").WithOptions(controller.Options{Reconciler: r})
-	err = nodeWatcherBuilder.
+	err = ctrl.NewControllerManagedBy(mgr).Named("staticroute-controller").
 		For(&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: r.options.Hostname}}).
 		Watches(
 			&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: r.options.Hostname}},
@@ -365,7 +362,6 @@ func validateNodeBySelector(params reconcileImplParams, rw *routeWrapper, logger
 
 func deleteOperation(params reconcileImplParams, rw *routeWrapper, logger types.Logger) (*reconcile.Result, error) {
 	logger.Info("Deregistering route")
-	rw.instance.DeletionTimestamp = nil
 	err := params.options.RouteManager.DeRegisterRoute(params.request.Name)
 	if err != nil && err != routemanager.ErrNotFound {
 		logger.Error(err, "Unable to deregister route")
