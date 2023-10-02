@@ -50,6 +50,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 // Change below variables to serve metrics on different host or port.
@@ -154,6 +155,9 @@ func mainImpl(params mainImplParams) {
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := params.newManager(cfg, manager.Options{
 		MapperProvider: apiutil.NewDiscoveryRESTMapper,
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
 	})
 	if err != nil {
 		panic(err)
