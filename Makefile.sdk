@@ -97,9 +97,13 @@ build: generate fmt vet ## Build manager binary.
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
-docker-build: test ## Build docker image with the manager.
-	docker buildx build --platform linux/amd64 --progress=plain -t ${IMG}-amd64 --build-arg BUILDER_IMAGE=$(GO_BUILDER_IMAGE) --build-arg ARCH=amd64 --load .
+docker-build-s390x:
+ifdef TRAVIS
 	docker buildx build --platform linux/s390x --progress=plain -t ${IMG}-s390x --build-arg BUILDER_IMAGE=$(GO_BUILDER_IMAGE) --build-arg ARCH=s390x --load .
+endif
+
+docker-build: test docker-build-s390x ## Build docker image with the manager.
+	docker buildx build --platform linux/amd64 --progress=plain -t ${IMG}-amd64 --build-arg BUILDER_IMAGE=$(GO_BUILDER_IMAGE) --build-arg ARCH=amd64 --load .
 	docker images
 
 docker-push: ## Push docker image with the manager.

@@ -34,14 +34,12 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 var (
@@ -241,25 +239,23 @@ func reconcileImpl(params reconcileImplParams) (res *reconcile.Result, err error
 // SetupWithManager sets up the controller with the Manager.
 func (r *StaticRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Watch for changes to primary resource StaticRoute
-	staticrouteWatcherBuilder := ctrl.NewControllerManagedBy(mgr).Named("staticroute-controller").WithOptions(controller.Options{Reconciler: r})
-	err := staticrouteWatcherBuilder.
+	err := ctrl.NewControllerManagedBy(mgr).Named("staticroute-controller").
 		For(&staticroutev1.StaticRoute{}).
-		Watches(&source.Kind{Type: &staticroutev1.StaticRoute{}}, &handler.EnqueueRequestForObject{}).
+		Watches(&staticroutev1.StaticRoute{}, &handler.EnqueueRequestForObject{}).
 		Complete(r)
 	if err != nil {
 		return err
 	}
 
 	// Watch if the self node labels are changed, so reconcile every route
-	nodeWatcherBuilder := ctrl.NewControllerManagedBy(mgr).Named("staticroute-controller").WithOptions(controller.Options{Reconciler: r})
-	err = nodeWatcherBuilder.
+	err = ctrl.NewControllerManagedBy(mgr).Named("staticroute-controller").
 		For(&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: r.options.Hostname}}).
 		Watches(
-			&source.Kind{Type: &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: r.options.Hostname}}},
+			&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: r.options.Hostname}},
 			handler.EnqueueRequestsFromMapFunc(
-				func(a client.Object) []reconcile.Request {
+				func(ctx context.Context, a client.Object) []reconcile.Request {
 					routes := &staticroutev1.StaticRouteList{}
-					if err := r.client.List(context.Background(), routes); err != nil {
+					if err := r.client.List(ctx, routes); err != nil {
 						log.Error(err, "Failed to List StaticRoute CRs")
 						return nil
 					}
@@ -269,7 +265,7 @@ func (r *StaticRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 						result = append(result, reconcile.Request{
 							NamespacedName: k8stypes.NamespacedName{
 								Name:      route.GetName(),
-								Namespace: "",
+								Namespace: route.GetNamespace(),
 							},
 						})
 					}

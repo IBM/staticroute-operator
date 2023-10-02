@@ -21,12 +21,12 @@ import (
 	"errors"
 	"net"
 	"testing"
+	"time"
 
 	staticroutev1 "github.com/IBM/staticroute-operator/api/v1"
 	"github.com/IBM/staticroute-operator/pkg/routemanager"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -65,7 +65,7 @@ func TestConvertTooperator(t *testing.T) {
 }
 
 func TestReconcileImpl(t *testing.T) {
-	params, _ := getReconcileContextForAddFlow(nil, true)
+	params, _ := getReconcileContextForAddFlow(nil, true, false)
 
 	res, err := reconcileImpl(*params)
 
@@ -79,7 +79,7 @@ func TestReconcileImpl(t *testing.T) {
 
 func TestReconcileImplCRGetFatalError(t *testing.T) {
 	//err "no kind is registered for the type v1."" because fake client doesn't have CRD
-	params, _ := getReconcileContextForAddFlow(nil, true)
+	params, _ := getReconcileContextForAddFlow(nil, true, false)
 	params.client = fake.NewClientBuilder().Build()
 
 	res, err := reconcileImpl(*params)
@@ -94,7 +94,7 @@ func TestReconcileImplCRGetFatalError(t *testing.T) {
 
 func TestReconcileImplCRGetNotFound(t *testing.T) {
 	route := &staticroutev1.StaticRoute{}
-	params, _ := getReconcileContextForAddFlow(route, true)
+	params, _ := getReconcileContextForAddFlow(route, true, false)
 
 	res, err := reconcileImpl(*params)
 
@@ -107,7 +107,7 @@ func TestReconcileImplCRGetNotFound(t *testing.T) {
 }
 
 func TestReconcileImplProtected(t *testing.T) {
-	params, _ := getReconcileContextForAddFlow(nil, true)
+	params, _ := getReconcileContextForAddFlow(nil, true, false)
 	params.options.ProtectedSubnets = []*net.IPNet{&net.IPNet{IP: net.IP{10, 0, 0, 0}, Mask: net.IPv4Mask(0xff, 0, 0, 0)}}
 
 	res, err := reconcileImpl(*params)
@@ -122,10 +122,7 @@ func TestReconcileImplProtected(t *testing.T) {
 
 func TestReconcileImplNotDeleted(t *testing.T) {
 	route := newStaticRouteWithValues(true, false)
-	params, mockClient := getReconcileContextForAddFlow(route, true)
-	mockClient.postfixGet = func(obj runtime.Object) {
-		obj.(*staticroutev1.StaticRoute).SetDeletionTimestamp(&v1.Time{})
-	}
+	params, _ := getReconcileContextForAddFlow(route, true, true)
 
 	res, err := reconcileImpl(*params)
 
@@ -150,7 +147,7 @@ func TestReconcileImplUpdated(t *testing.T) {
 			},
 		},
 	}
-	params, _ := getReconcileContextForAddFlow(route, true)
+	params, _ := getReconcileContextForAddFlow(route, true, false)
 
 	res, err := reconcileImpl(*params)
 
@@ -227,7 +224,7 @@ func TestReconcileImplNodeSelectorMissingOp(t *testing.T) {
 		Key:    "key",
 		Values: []string{"value"},
 	}}
-	params, mockClient := getReconcileContextForAddFlow(route, true)
+	params, mockClient := getReconcileContextForAddFlow(route, true, false)
 	mockClient.listErr = errors.New("Couldn't fetch nodes")
 
 	res, err := reconcileImpl(*params)
@@ -247,7 +244,7 @@ func TestReconcileImplNodeSelectorInvalid(t *testing.T) {
 		Operator: metav1.LabelSelectorOpIn,
 		Values:   []string{"value"},
 	}}
-	params, mockClient := getReconcileContextForAddFlow(route, true)
+	params, mockClient := getReconcileContextForAddFlow(route, true, false)
 	mockClient.listErr = errors.New("Couldn't fetch nodes")
 
 	res, err := reconcileImpl(*params)
@@ -263,7 +260,7 @@ func TestReconcileImplNodeSelectorInvalid(t *testing.T) {
 func TestReoncileImplUpdateStatus(t *testing.T) {
 	// Initialization
 	route := newStaticRouteWithValues(true, false)
-	params, mockClient := getReconcileContextForAddFlow(route, true)
+	params, mockClient := getReconcileContextForAddFlow(route, true, false)
 	params.options.RouteManager = routeManagerMock{
 		registerRouteErr: errors.New("Couldn't register route"),
 	}
@@ -317,7 +314,7 @@ func TestReconcileImplNodeSelectorFatalError(t *testing.T) {
 		Operator: metav1.LabelSelectorOpIn,
 		Values:   []string{"value"},
 	}}
-	params, mockClient := getReconcileContextForAddFlow(route, true)
+	params, mockClient := getReconcileContextForAddFlow(route, true, false)
 	mockClient.listErr = errors.New("Couldn't fetch nodes")
 
 	res, err := reconcileImpl(*params)
@@ -337,7 +334,7 @@ func TestReconcileImplNodeSelectorNotFound(t *testing.T) {
 		Operator: metav1.LabelSelectorOpIn,
 		Values:   []string{"value"},
 	}}
-	params, _ := getReconcileContextForAddFlow(route, true)
+	params, _ := getReconcileContextForAddFlow(route, true, false)
 
 	res, err := reconcileImpl(*params)
 
@@ -350,10 +347,7 @@ func TestReconcileImplNodeSelectorNotFound(t *testing.T) {
 }
 
 func TestReconcileImplDeleted(t *testing.T) {
-	params, mockClient := getReconcileContextForAddFlow(nil, true)
-	mockClient.postfixGet = func(obj runtime.Object) {
-		obj.(*staticroutev1.StaticRoute).SetDeletionTimestamp(&v1.Time{})
-	}
+	params, _ := getReconcileContextForAddFlow(nil, true, true)
 
 	res, err := reconcileImpl(*params)
 
@@ -366,12 +360,9 @@ func TestReconcileImplDeleted(t *testing.T) {
 }
 
 func TestReconcileImplDeletedIfRouteNotFound(t *testing.T) {
-	params, mockClient := getReconcileContextForAddFlow(nil, true)
+	params, _ := getReconcileContextForAddFlow(nil, true, true)
 	params.options.RouteManager = routeManagerMock{
 		deRegisterRouteErr: routemanager.ErrNotFound,
-	}
-	mockClient.postfixGet = func(obj runtime.Object) {
-		obj.(*staticroutev1.StaticRoute).SetDeletionTimestamp(&v1.Time{})
 	}
 
 	res, err := reconcileImpl(*params)
@@ -385,12 +376,9 @@ func TestReconcileImplDeletedIfRouteNotFound(t *testing.T) {
 }
 
 func TestReconcileImplDeletedButCantDeregister(t *testing.T) {
-	params, mockClient := getReconcileContextForAddFlow(nil, true)
+	params, _ := getReconcileContextForAddFlow(nil, true, true)
 	params.options.RouteManager = routeManagerMock{
 		deRegisterRouteErr: errors.New("Couldn't deregister route"),
-	}
-	mockClient.postfixGet = func(obj runtime.Object) {
-		obj.(*staticroutev1.StaticRoute).SetDeletionTimestamp(&v1.Time{})
 	}
 
 	res, err := reconcileImpl(*params)
@@ -404,10 +392,7 @@ func TestReconcileImplDeletedButCantDeregister(t *testing.T) {
 }
 
 func TestReconcileImplDeletedButCantDeleteStatus(t *testing.T) {
-	params, mockClient := getReconcileContextForAddFlow(nil, true)
-	mockClient.postfixGet = func(obj runtime.Object) {
-		obj.(*staticroutev1.StaticRoute).SetDeletionTimestamp(&v1.Time{})
-	}
+	params, mockClient := getReconcileContextForAddFlow(nil, true, true)
 	mockClient.statusWriteMock = &statusWriterMock{
 		updateErr: errors.New("Couldn't update status"),
 	}
@@ -423,10 +408,7 @@ func TestReconcileImplDeletedButCantDeleteStatus(t *testing.T) {
 }
 
 func TestReconcileImplDeletedButCantEmptyFinalizers(t *testing.T) {
-	params, mockClient := getReconcileContextForAddFlow(nil, true)
-	mockClient.postfixGet = func(obj runtime.Object) {
-		obj.(*staticroutev1.StaticRoute).SetDeletionTimestamp(&v1.Time{})
-	}
+	params, mockClient := getReconcileContextForAddFlow(nil, true, true)
 	mockClient.updateErr = errors.New("Couldn't empty finalizers")
 
 	res, err := reconcileImpl(*params)
@@ -440,7 +422,7 @@ func TestReconcileImplDeletedButCantEmptyFinalizers(t *testing.T) {
 }
 
 func TestReconcileImplIsNewButCantSetFinalizers(t *testing.T) {
-	params, mockClient := getReconcileContextForAddFlow(nil, true)
+	params, mockClient := getReconcileContextForAddFlow(nil, true, false)
 	mockClient.updateErr = errors.New("Couldn't fill finalizers")
 
 	res, err := reconcileImpl(*params)
@@ -456,7 +438,7 @@ func TestReconcileImplIsNewButCantSetFinalizers(t *testing.T) {
 func TestReconcileImplIsNotRegisteredButCantParseSubnet(t *testing.T) {
 	route := newStaticRouteWithValues(true, false)
 	route.Spec.Subnet = "invalid-subnet"
-	params, _ := getReconcileContextForAddFlow(route, false)
+	params, _ := getReconcileContextForAddFlow(route, false, false)
 
 	res, err := reconcileImpl(*params)
 
@@ -469,7 +451,7 @@ func TestReconcileImplIsNotRegisteredButCantParseSubnet(t *testing.T) {
 }
 
 func TestReconcileImplIsNotRegisteredButCantRegister(t *testing.T) {
-	params, _ := getReconcileContextForAddFlow(nil, true)
+	params, _ := getReconcileContextForAddFlow(nil, true, false)
 	params.options.RouteManager = routeManagerMock{
 		registerRouteErr: errors.New("Couldn't register route"),
 	}
@@ -485,7 +467,7 @@ func TestReconcileImplIsNotRegisteredButCantRegister(t *testing.T) {
 }
 
 func TestReconcileImplIsRegisteredButCantAddStatus(t *testing.T) {
-	params, mockClient := getReconcileContextForAddFlow(nil, true)
+	params, mockClient := getReconcileContextForAddFlow(nil, true, false)
 	params.options.Hostname = "hostname2"
 	mockClient.statusWriteMock = &statusWriterMock{
 		updateErr: errors.New("Couldn't update status"),
@@ -504,7 +486,7 @@ func TestReconcileImplIsRegisteredButCantAddStatus(t *testing.T) {
 func TestReconcileImplInvalidGateway(t *testing.T) {
 	route := newStaticRouteWithValues(true, true)
 	route.Spec.Gateway = "invalid-gateway"
-	params, _ := getReconcileContextForAddFlow(route, true)
+	params, _ := getReconcileContextForAddFlow(route, true, false)
 
 	res, err := reconcileImpl(*params)
 
@@ -519,7 +501,7 @@ func TestReconcileImplInvalidGateway(t *testing.T) {
 func TestReconcileImplCantDetermineGateway(t *testing.T) {
 	route := newStaticRouteWithValues(true, true)
 	route.Spec.Gateway = ""
-	params, _ := getReconcileContextForAddFlow(route, true)
+	params, _ := getReconcileContextForAddFlow(route, true, false)
 	params.options.GetGw = func(net.IP) (net.IP, error) {
 		return nil, errors.New("Can't determine gateway")
 	}
@@ -539,7 +521,7 @@ func TestReconcileImplDetermineGateway(t *testing.T) {
 
 	route := newStaticRouteWithValues(true, true)
 	route.Spec.Gateway = ""
-	params, _ := getReconcileContextForAddFlow(route, false)
+	params, _ := getReconcileContextForAddFlow(route, false, false)
 	params.options.GetGw = func(net.IP) (net.IP, error) {
 		return net.IP{10, 0, 0, 1}, nil
 	}
@@ -562,7 +544,7 @@ func TestReconcileImplDetermineGateway(t *testing.T) {
 func TestReconcileImplGatewayNotDirectlyRoutable(t *testing.T) {
 	route := newStaticRouteWithValues(true, true)
 	route.Spec.Gateway = "10.0.10.1"
-	params, _ := getReconcileContextForAddFlow(route, true)
+	params, _ := getReconcileContextForAddFlow(route, true, false)
 	params.options.GetGw = func(net.IP) (net.IP, error) {
 		return net.IP{10, 0, 0, 1}, nil
 	}
@@ -577,9 +559,14 @@ func TestReconcileImplGatewayNotDirectlyRoutable(t *testing.T) {
 	}
 }
 
-func getReconcileContextForAddFlow(route *staticroutev1.StaticRoute, isRegistered bool) (*reconcileImplParams, *reconcileImplClientMock) {
+func getReconcileContextForAddFlow(route *staticroutev1.StaticRoute, isRegistered bool, isDeleting bool) (*reconcileImplParams, *reconcileImplClientMock) {
 	if route == nil {
 		route = newStaticRouteWithValues(true, true)
+	}
+
+	if isDeleting {
+		route.DeletionTimestamp = &v1.Time{Time: time.Date(2021, time.Month(2), 21, 1, 10, 30, 0, time.UTC)}
+		route.Finalizers = append(route.Finalizers, "finalizer.static-route.ibm.com")
 	}
 	mockClient := reconcileImplClientMock{
 		client: newFakeClient(route),
