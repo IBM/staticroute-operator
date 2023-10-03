@@ -59,6 +59,9 @@ type StaticRouteStatus struct {
 // StaticRoute is the Schema for the staticroutes API
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:path=staticroutes,scope=Cluster
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,priority=0
+// +kubebuilder:printcolumn:name="Network",type=string,JSONPath=`.spec.subnet`,priority=1
+// +kubebuilder:printcolumn:name="Gateway",type=string,JSONPath=`.spec.gateway`,description="empty field means default gateway",priority=1
 type StaticRoute struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
