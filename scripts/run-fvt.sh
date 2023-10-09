@@ -21,12 +21,12 @@ cleanup() {
     if [[ "${SKIP_OPERATOR_INSTALL}" == "false" ]]; then
       manage_common_operator_resources "delete"
     fi
+    pod_security_unlabel_namespace default
     if [[ "${PROVIDER}" == "kind" ]]; then
       kind delete cluster --name ${KIND_CLUSTER_NAME}
       rm -rf "${SCRIPT_PATH}"/kubeconfig.yaml
     fi
   fi
-  pod_security_unlabel_namespace default
 }
 
 trap cleanup EXIT
