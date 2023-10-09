@@ -26,6 +26,7 @@ cleanup() {
       rm -rf "${SCRIPT_PATH}"/kubeconfig.yaml
     fi
   fi
+  pod_security_unlabel_namespace default
 }
 
 trap cleanup EXIT
@@ -45,6 +46,9 @@ if [[ ${PROVIDER} == "kind" ]]; then
 else
     fvtlog "Provider was set to ${PROVIDER}, use the provided cluster."
 fi
+
+# Label default namespace to allow privliged pod creation
+pod_security_label_namespace default
 
 # Support for manual install
 if [[ "${SKIP_OPERATOR_INSTALL}" == false ]]; then
