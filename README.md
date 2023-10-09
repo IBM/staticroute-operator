@@ -107,6 +107,9 @@ Also there is an option to functionally test the operator on an existing cluster
     - PROTECTED_SUBNET_TEST1
     - PROTECTED_SUBNET_TEST2 (list of protected subnets to test, if either of them are empty then no protected subnet test will run)
 
+### Handling Restricted Pod Security Admission (PSA)
+The fvt test script attempts to install `static-route-operator` and `hostnet` pods into the `default` namespace. These pods require escalated privlleges to be able to verify functionality of the operator. Since [Kubernetes 1.25](https://kubernetes.io/docs/concepts/security/pod-security-admission/), PSA has been a stable feature and allows users to restrict or prevent the creation of pods that require higher levels of authority. The fvt test script will temprarily apply labels to the `default` namepsace to allow the privliged pods to be created, and upon completion of the fvt test script the label values will be removed (if they did not exist prior to testing) or they will be reset to their previous values (if they were set prior to running the test script). 
+
 ## Setting Travis-CI
 If you want to test, build and publish your changes into your own personal repo after forking this project, you need to following variables set up in Travis instance associated to your github project:
   - DOCKER_IMAGE_NAME, this is the name of your docker image ie. myrepo/staticroute-operator
