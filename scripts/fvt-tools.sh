@@ -5,6 +5,40 @@ SLEEP_COUNT=20
 SLEEP_WAIT_SECONDS=6
 declare -a NODES
 
+originalPodSecuritySync=""
+originalPodSecurityEnforce=""
+originalPodSecurityEnforceVersion=""
+
+function pod_security_label_namespace() {
+  currentLabels=$(kubectl get ns "$1" --ignore-not-found -o=jsonpath='{.metadata.labels}{"\n"}' | tr -d '"' | tr -d '{' | tr -d '}' | tr "," "\n")
+
+  originalPodSecuritySync=$(echo "$currentLabels" | ( grep security.openshift.io/scc.podSecurityLabelSync: || true ) | cut -d ":" -f2)
+  originalPodSecurityEnforce=$(echo "$currentLabels" | ( grep pod-security.kubernetes.io/enforce: || true ) | cut -d ":" -f2)
+  originalPodSecurityEnforceVersion=$(echo "$currentLabels" | ( grep pod-security.kubernetes.io/enforce-version || true ) | cut -d ":" -f2)
+
+  kubectl label --overwrite ns default security.openshift.io/scc.podSecurityLabelSync=false pod-security.kubernetes.io/enforce=privileged pod-security.kubernetes.io/enforce-version=latest
+}
+
+function pod_security_unlabel_namespace() {
+  if [[ -z "$originalPodSecuritySync" ]]; then
+    kubectl label --overwrite ns "$1" security.openshift.io/scc.podSecurityLabelSync-
+  else
+    kubectl label --overwrite ns "$1" security.openshift.io/scc.podSecurityLabelSync="$originalPodSecuritySync"
+  fi
+
+  if [[ -z "$originalPodSecurityEnforce" ]]; then
+    kubectl label --overwrite ns "$1" pod-security.kubernetes.io/enforce-
+  else
+    kubectl label --overwrite ns "$1" pod-security.kubernetes.io/enforce="$originalPodSecurityEnforce"
+  fi
+
+  if [[ -z "$originalPodSecurityEnforceVersion" ]]; then
+    kubectl label --overwrite ns "$1" pod-security.kubernetes.io/enforce-version-
+  else
+    kubectl label --overwrite ns "$1" pod-security.kubernetes.io/enforce-version="$originalPodSecurityEnforceVersion"
+  fi
+}
+
 fvtlog() {
   echo "$(date +"%F %T %Z")" "[fvt]" "$*"
 }
