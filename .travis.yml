@@ -8,7 +8,7 @@ dist: jammy
 
 # Go version for Travis (fvt)
 go:
-- "1.19.11"
+- 1.20
 
 git:
     depth: 9999
@@ -32,7 +32,6 @@ before_script:
 - export REGISTRY_URL=$(echo "${DOCKER_REGISTRY_LIST}" | tr ',' ' ' | cut -d' ' -f1)
 - export REGISTRY_REPO=${REGISTRY_URL}/${DOCKER_IMAGE_NAME}
 - DOCKER_CLI_EXPERIMENTAL=enabled
-- DOCKER_BUILDKIT=1 docker build --help
 - mkdir -p ~/.docker/cli-plugins
 - docker --version
 - wget https://github.com/docker/buildx/releases/download/v0.9.1/buildx-v0.9.1.linux-amd64
