@@ -65,7 +65,7 @@ func (rw *routeWrapper) isChanged(hostname, gateway string, selectors []metav1.L
 	for _, s := range rw.instance.Status.NodeStatus {
 		if s.Hostname != hostname {
 			continue
-		} else if s.State.Subnet != rw.instance.Spec.Subnet || s.State.Gateway != gateway || !reflect.DeepEqual(s.State.Selectors, selectors) {
+		} else if s.State.Subnet != rw.instance.Spec.Subnet || s.State.Gateway != gateway || !reflect.DeepEqual(s.State.Table, rw.instance.Spec.Table) || !reflect.DeepEqual(s.State.Selectors, selectors) {
 			return true
 		}
 	}
