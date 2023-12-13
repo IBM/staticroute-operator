@@ -233,7 +233,12 @@ func reconcileImpl(params reconcileImplParams) (res *reconcile.Result, err error
 		return
 	}
 
-	return addOperation(params, &rw, gateway, params.options.Table, reqLogger)
+	table := params.options.Table
+	if rw.instance.Spec.Table != nil {
+		table = *rw.instance.Spec.Table
+	}
+
+	return addOperation(params, &rw, gateway, table, reqLogger)
 }
 
 // SetupWithManager sets up the controller with the Manager.
