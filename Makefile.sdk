@@ -104,7 +104,16 @@ run: manifests generate fmt vet ## Run a controller from your host.
 #endif
 
 docker-build: test ## docker-build-s390x
-	docker buildx build --platform linux/amd64 --progress=plain -t ${IMG}-amd64 --build-arg BUILDER_IMAGE=$(GO_BUILDER_IMAGE) --build-arg ARCH=amd64 --load .
+	docker buildx build \
+		--platform linux/amd64 \
+		--progress=plain \
+		-t ${IMG}-amd64 \
+		--build-arg BUILDER_IMAGE=$(GO_BUILDER_IMAGE) \
+		--build-arg ARCH=amd64 \
+		--build-arg CGO=${CGO} \
+		--build-arg GOBUILDFLAGS=${GOBUILDFLAGS} \
+		--build-arg INTERMEDIATE_IMAGE=${INTERMEDIATE_IMAGE} \
+		--load .
 	docker images
 
 docker-push: ## Push docker image with the manager.

@@ -1,5 +1,6 @@
 # Builder stage
 ARG BUILDER_IMAGE
+ARG INTERMEDIATE_IMAGE
 FROM $BUILDER_IMAGE as builder
 ENV GO111MODULE=on
 WORKDIR /
@@ -13,10 +14,12 @@ COPY controllers/ controllers/
 COPY pkg/ pkg/
 COPY version/ version/
 ARG ARCH
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${ARCH} go build -mod=mod -a -o /staticroute-operator main.go
+ARG CGO
+ARG BUILDPARAM
+RUN CGO_ENABLED=${CGO} GOOS=linux GOARCH=${ARCH} go build ${GOBUILDFLAGS} -o /staticroute-operator main.go
 
 # Intermediate stage to apply capabilities
-FROM debian:bullseye AS intermediate
+FROM $INTERMEDIATE_IMAGE AS intermediate
 
 RUN apt-get update && apt-get install -y libcap2-bin
 COPY --from=builder /staticroute-operator /staticroute-operator
