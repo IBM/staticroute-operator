@@ -27,6 +27,11 @@ spec:
       name: Gateway
       priority: 1
       type: string
+    - description: empty field means default table
+      jsonPath: .spec.table
+      name: Table
+      priority: 1
+      type: integer
     name: v1
     schema:
       openAPIV3Schema:
@@ -86,6 +91,12 @@ spec:
                   "x.x.x.x/x"'
                 pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$
                 type: string
+              table:
+                description: Table the route will be installed in (optional, uses
+                  default table if not set)
+                maximum: 254
+                minimum: 0
+                type: integer
             required:
             - subnet
             type: object
@@ -145,6 +156,12 @@ spec:
                             form of: "x.x.x.x/x"'
                           pattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$
                           type: string
+                        table:
+                          description: Table the route will be installed in (optional,
+                            uses default table if not set)
+                          maximum: 254
+                          minimum: 0
+                          type: integer
                       required:
                       - subnet
                       type: object

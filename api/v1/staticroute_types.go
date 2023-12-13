@@ -35,6 +35,11 @@ type StaticRouteSpec struct {
 	// +kubebuilder:validation:Pattern=`^([0-9]{1,3}\.){3}[0-9]{1,3}$`
 	Gateway string `json:"gateway,omitempty"`
 
+	// Table the route will be installed in (optional, uses default table if not set)
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=254
+	Table *int `json:"table,omitempty"`
+
 	// Selector defines the target nodes by requirement (optional, default is apply to all)
 	Selectors []metav1.LabelSelectorRequirement `json:"selectors,omitempty"`
 }
@@ -62,6 +67,7 @@ type StaticRouteStatus struct {
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`,priority=0
 // +kubebuilder:printcolumn:name="Network",type=string,JSONPath=`.spec.subnet`,priority=1
 // +kubebuilder:printcolumn:name="Gateway",type=string,JSONPath=`.spec.gateway`,description="empty field means default gateway",priority=1
+// +kubebuilder:printcolumn:name="Table",type=integer,JSONPath=`.spec.table`,description="empty field means default table",priority=1
 type StaticRoute struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
