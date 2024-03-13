@@ -1,5 +1,5 @@
 //
-// Copyright 2021 IBM Corporation
+// Copyright 2021, 2024 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -154,7 +154,7 @@ func mainImpl(params mainImplParams) {
 
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := params.newManager(cfg, manager.Options{
-		MapperProvider: apiutil.NewDiscoveryRESTMapper,
+		MapperProvider: apiutil.NewDynamicRESTMapper,
 		Metrics: metricsserver.Options{
 			BindAddress: "0",
 		},
