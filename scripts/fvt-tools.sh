@@ -233,18 +233,19 @@ check_operator_is_running() {
 check_route_on_nodes() {
   local route=$1
   local match_node="${2:-all}"
-  local test_type="${3:-positive}"
+  local table="${3:-main}"
+  local test_type="${4:-positive}"
   local match=false
   local passed=false
   local routes
   for node in "${NODES[@]}"; do
     # Execute the command on all the nodes or only the given node
-    if [[ "${match_node}" == "all" ]] || 
+    if [[ "${match_node}" == "all" ]] ||
        [[ "${match_node}" == "${node}" ]]; then
       match=true
       passed=false
       for _ in $(seq ${SLEEP_COUNT}); do
-        routes=$(exec_in_hostnet_of_node "${node}" 'ip route')
+        routes=$(exec_in_hostnet_of_node "${node}" "ip route show table ${table}")
         if [[ "${test_type}" == "positive" ]] &&
           [[ ${routes} == *${route}* ]]; then
           fvtlog "Passed: The route was found on node ${node}!"
