@@ -38,7 +38,7 @@ fvtlog "Preparing environment for static-route-operator tests..."
 if [[ ${PROVIDER} == "kind" ]]; then
     fvtlog "Provider is set to KinD, creating cluster..."
     create_kind_cluster
-    
+
     # Get KUBECONFIG
     kind get kubeconfig --name "${KIND_CLUSTER_NAME}" > "${SCRIPT_PATH}"/kubeconfig.yaml
 
@@ -142,14 +142,14 @@ do
   if [[ "${A_NODE}" == "${NODES[$index]}" ]]; then
     check_route_on_nodes "192.168.2.0/24 via ${GW}" "${NODES[$index]}"
   else
-    check_route_on_nodes "192.168.2.0/24 via ${GW}" "${NODES[$index]}" "negative"
+    check_route_on_nodes "192.168.2.0/24 via ${GW}" "${NODES[$index]}" "default" "negative"
   fi
 done
 
 fvtlog "Test selected label is changed - ${A_NODE} has to remove its route"
 kubectl label node "${A_NODE}" kubernetes.io/hostname=temp --overwrite=true
 check_static_route_crd_status "example-static-route-with-selector" "nodes_shall_not_post_status"
-check_route_on_nodes "192.168.2.0/24 via ${GW}" "${A_NODE}" "negative"
+check_route_on_nodes "192.168.2.0/24 via ${GW}" "${A_NODE}" "default" "negative"
 
 fvtlog "And then apply back the label - ${A_NODE} has to restore its route"
 kubectl label node "${A_NODE}" kubernetes.io/hostname="${A_NODE}" --overwrite=true
@@ -186,13 +186,13 @@ update_node_list
 fvtlog "Test static-route deletion - routes must be deleted"
 if [[ ${PROVIDER} == "kind" ]]; then
   kubectl delete staticroute example-static-route-simple
-  check_route_on_nodes "192.168.0.0/24 via ${GW}" "all" "negative"
+  check_route_on_nodes "192.168.0.0/24 via ${GW}" "all" "default" "negative"
   kubectl delete staticroute example-static-route-with-gateway
-  check_route_on_nodes "192.168.1.0/24 via ${GW}" "all" "negative"
+  check_route_on_nodes "192.168.1.0/24 via ${GW}" "all" "default" "negative"
 fi
 
 kubectl delete staticroute example-static-route-with-selector
-check_route_on_nodes "192.168.2.0/24 via ${GW}" "all" "negative"
+check_route_on_nodes "192.168.2.0/24 via ${GW}" "all" "default" "negative"
 
 fvtlog "Test wrong gateway configuration"
 cat <<EOF | kubectl apply -f -
@@ -205,7 +205,7 @@ spec:
   gateway: "1.2.3.4"
 EOF
 check_static_route_crd_status "example-static-route-with-wrong-gateway" "all_nodes_shall_post_status" "Given gateway IP is not directly routable, cannot setup the route"
-check_route_on_nodes "192.168.0.0/24 via 1.2.3.4" "all" "negative"
+check_route_on_nodes "192.168.0.0/24 via 1.2.3.4" "all" "default" "negative"
 kubectl delete staticroute example-static-route-with-wrong-gateway
 
 if [[ "${PROVIDER}" == "kind" ]]; then
@@ -253,8 +253,8 @@ EOF
   update_node_list
   check_static_route_crd_status "example-static-route-protected-subnet1" "all_nodes_shall_post_status" "Given subnet overlaps with some protected subnet"
   check_static_route_crd_status "example-static-route-protected-subnet2" "all_nodes_shall_post_status" "Given subnet overlaps with some protected subnet"
-  check_route_on_nodes "${SUBNET1} via ${GW}" "all" "negative"
-  check_route_on_nodes "${SUBNET2} via ${GW}" "all" "negative"
+  check_route_on_nodes "${SUBNET1} via ${GW}" "all" "default" "negative"
+  check_route_on_nodes "${SUBNET2} via ${GW}" "all" "default" "negative"
   kubectl delete staticroute example-static-route-protected-subnet1 example-static-route-protected-subnet2
 fi
 
@@ -276,8 +276,25 @@ spec:
         - zone02
 EOF
   check_static_route_crd_status "example-static-route-no-match" "nodes_shall_not_post_status"
-  check_route_on_nodes "192.168.0.0/24 via ${GW}" "all" "negative"
+  check_route_on_nodes "192.168.0.0/24 via ${GW}" "all" "default" "negative"
   kubectl delete staticroute example-static-route-no-match
+fi
+
+if [[ ${PROVIDER} == "kind" ]]; then
+  fvtlog "Test using a different routing table - route should appear in table 30"
+  cat <<EOF | kubectl apply -f -
+apiVersion: static-route.ibm.com/v1
+kind: StaticRoute
+metadata:
+  name: example-static-route-different-table
+spec:
+  subnet: "192.168.0.0/24"
+  gateway: "${GW}"
+  table: 30
+EOF
+  check_static_route_crd_status "example-static-route-different-table"
+  check_route_on_nodes "192.168.0.0/24 via ${GW}" "all" "30"
+  kubectl delete staticroute example-static-route-different-table
 fi
 
 fvtlog "All tests passed!"
