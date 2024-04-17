@@ -53,7 +53,7 @@ pick_non_master_node() {
   else
     for index in ${!NODES[*]}
     do
-      kubectl get no "${NODES[$index]}" --show-labels | grep 'node-role.kubernetes.io/master=' > /dev/null && continue || echo -ne "${NODES[$index]}"; break
+      kubectl get no "${NODES[$index]}" --show-labels | grep 'kubernetes.io/hostname=static-route-operator-fvt-control-plane' > /dev/null && continue || echo -ne "${NODES[$index]}"; break
     done
   fi
 }
@@ -73,7 +73,7 @@ spec:
   containers:
   - image: ${FVT_HELPER_IMAGE}
     name: hostnet-${NODES[$index]//\./-}
-    command: ["/bin/tail"]
+    command: ["tail"]
     args: ["-f", "/dev/null"]
   hostNetwork: true
   nodeSelector:
