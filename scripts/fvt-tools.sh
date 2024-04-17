@@ -71,7 +71,7 @@ metadata:
   namespace: default
 spec:
   containers:
-  - image: busybox
+  - image: ${FVT_HELPER_IMAGE}
     name: hostnet-${NODES[$index]//\./-}
     command: ["/bin/tail"]
     args: ["-f", "/dev/null"]
