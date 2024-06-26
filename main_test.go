@@ -1,5 +1,5 @@
 //
-// Copyright 2021 IBM Corporation
+// Copyright 2021, 2024 IBM Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,11 +18,12 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"runtime/debug"
 	"testing"
+
+	goruntime "runtime"
 
 	"github.com/IBM/staticroute-operator/controllers/staticroute"
 	"github.com/IBM/staticroute-operator/pkg/routemanager"
@@ -125,7 +126,7 @@ func TestMainImplFallbackIPOk(t *testing.T) {
 }
 
 func TestMainImplGetConfigFails(t *testing.T) {
-	err := errors.New("fatal-error")
+	err := new(goruntime.PanicNilError)
 	defer validateRecovery(t, err)()
 	params, _ := getContextForHappyFlow()
 	params.getConfig = func() (*rest.Config, error) {
@@ -138,7 +139,7 @@ func TestMainImplGetConfigFails(t *testing.T) {
 }
 
 func TestMainImplNewManagerFails(t *testing.T) {
-	err := errors.New("fatal-error")
+	err := new(goruntime.PanicNilError)
 	defer validateRecovery(t, err)()
 	params, _ := getContextForHappyFlow()
 	params.newManager = func(*rest.Config, manager.Options) (manager.Manager, error) {
@@ -151,7 +152,7 @@ func TestMainImplNewManagerFails(t *testing.T) {
 }
 
 func TestMainImplAddToSchemeFails(t *testing.T) {
-	err := errors.New("fatal-error")
+	err := new(goruntime.PanicNilError)
 	defer validateRecovery(t, err)()
 	params, _ := getContextForHappyFlow()
 	params.addToScheme = func(s *runtime.Scheme) error {
@@ -236,7 +237,7 @@ func TestMainImplFallbackIPv6Provided(t *testing.T) {
 }
 
 func TestMainImplNewKubernetesConfigFails(t *testing.T) {
-	err := errors.New("fatal-error")
+	err := new(goruntime.PanicNilError)
 	defer validateRecovery(t, err)()
 	params, _ := getContextForHappyFlow()
 	params.newKubernetesConfig = func(c *rest.Config) (discoverable, error) {
@@ -249,7 +250,7 @@ func TestMainImplNewKubernetesConfigFails(t *testing.T) {
 }
 
 func TestMainImplServerResourcesForGroupVersionFails(t *testing.T) {
-	err := errors.New("fatal-error")
+	err := new(goruntime.PanicNilError)
 	defer validateRecovery(t, err)()
 	params, _ := getContextForHappyFlow()
 	params.newKubernetesConfig = func(c *rest.Config) (discoverable, error) {
@@ -262,7 +263,7 @@ func TestMainImplServerResourcesForGroupVersionFails(t *testing.T) {
 }
 
 func TestMainImplCrdNorFound(t *testing.T) {
-	err := errors.New("fatal-error")
+	err := new(goruntime.PanicNilError)
 	defer validateRecovery(t, err)()
 	params, _ := getContextForHappyFlow()
 	params.newKubernetesConfig = func(c *rest.Config) (discoverable, error) {
@@ -275,7 +276,7 @@ func TestMainImplCrdNorFound(t *testing.T) {
 }
 
 func TestMainImplAddStaticRouteControllerFails(t *testing.T) {
-	err := errors.New("fatal-error")
+	err := new(goruntime.PanicNilError)
 	defer validateRecovery(t, err)()
 	params, _ := getContextForHappyFlow()
 	params.addStaticRouteController = func(manager.Manager, staticroute.ManagerOptions) error {
@@ -288,7 +289,7 @@ func TestMainImplAddStaticRouteControllerFails(t *testing.T) {
 }
 
 func TestMainImplAddNodeControllerFails(t *testing.T) {
-	err := errors.New("fatal-error")
+	err := new(goruntime.PanicNilError)
 	defer validateRecovery(t, err)()
 	params, _ := getContextForHappyFlow()
 	params.addNodeController = func(manager.Manager) error {
@@ -301,7 +302,7 @@ func TestMainImplAddNodeControllerFails(t *testing.T) {
 }
 
 func TestMainImplManagerStartFails(t *testing.T) {
-	err := errors.New("fatal-error")
+	err := new(goruntime.PanicNilError)
 	defer validateRecovery(t, err)()
 	params, _ := getContextForHappyFlow()
 	params.newManager = func(*rest.Config, manager.Options) (manager.Manager, error) {

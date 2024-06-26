@@ -4,10 +4,11 @@ set -o pipefail
 
 SCRIPT_PATH=$PWD/$(dirname "$0")
 KIND_CLUSTER_NAME="static-route-operator-fvt"
-KIND_IMAGE_VERSION="kindest/node:v1.21.1@sha256:69860bda5563ac81e3c0057d654b5253219618a22ec3a346306239bba8cfa1a6"
+KIND_IMAGE_VERSION="kindest/node:v1.29.2@sha256:51a1434a5397193442f0be2a297b488b6c919ce8a3931be0ce822606ea5ca245"
 KEEP_ENV="${KEEP_ENV:-false}"
 SKIP_OPERATOR_INSTALL="${SKIP_OPERATOR_INSTALL:-false}"
 PROVIDER="${PROVIDER:-kind}"
+FVT_HELPER_IMAGE="${FVT_HELPER_IMAGE:-busybox}"
 IMAGEPULLSECRET="${IMAGEPULLSECRET:-}"
 
 # shellcheck source=scripts/fvt-tools.sh
