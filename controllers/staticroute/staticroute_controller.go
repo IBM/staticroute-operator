@@ -185,22 +185,14 @@ func reconcileImpl(params reconcileImplParams) (res *reconcile.Result, err error
 				}
 			}
 		}
+
+		// if staticroute deletion started, fire delete operation
+		if !instance.ObjectMeta.DeletionTimestamp.IsZero() {
+			res, err = deleteOperation(params, &rw, reqLogger)
+		}
 	}()
 
-	// Check if the staticroute overlaps with some protected subnets
-	if rw.isProtected(params.options.ProtectedSubnets) {
-		// a subnet overlaps some protected, ignore, but set error in nodeStatus
-		reqLogger.Info("Error: subnet overlaps some protected", "Subnet", rw.instance.Spec.Subnet)
-		res = overlapsProtected
-		return
-	}
-
-	// If "gateway" is empty, we'll create the route through the default private network gateway
-	res, gateway, err = selectGateway(params, rw, reqLogger)
-	if gateway == nil || res == gatewayNotDirectlyRoutableError {
-		return
-	}
-
+	// Check staticroute node selector
 	selectorNoLongerMatches := false
 	if len(rw.instance.Spec.Selectors) > 0 {
 		reqLogger.Info("Node selector found", "Selector", rw.instance.Spec.Selectors)
@@ -214,6 +206,19 @@ func reconcileImpl(params reconcileImplParams) (res *reconcile.Result, err error
 			reqLogger.Info("Node labels likely changed and no longer applies to this CR")
 			selectorNoLongerMatches = true
 		}
+	}
+
+	// Check if the staticroute overlaps with some protected subnets
+	if rw.isProtected(params.options.ProtectedSubnets) {
+		// a subnet overlaps some protected, ignore, but set error in nodeStatus
+		reqLogger.Info("Error: subnet overlaps some protected", "Subnet", rw.instance.Spec.Subnet)
+		res = overlapsProtected
+		return
+	}
+	// If "gateway" is empty, we'll create the route through the default private network gateway
+	res, gateway, err = selectGateway(params, rw, reqLogger)
+	if gateway == nil || res == gatewayNotDirectlyRoutableError {
+		return
 	}
 
 	isChanged := rw.isChanged(params.options.Hostname, gateway.String(), rw.instance.Spec.Selectors)

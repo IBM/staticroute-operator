@@ -257,7 +257,7 @@ func TestReconcileImplNodeSelectorInvalid(t *testing.T) {
 	}
 }
 
-func TestReoncileImplUpdateStatus(t *testing.T) {
+func TestReconcileImplUpdateStatus(t *testing.T) {
 	// Initialization
 	route := newStaticRouteWithValues(true, false)
 	params, mockClient := getReconcileContextForAddFlow(route, true, false)
@@ -553,6 +553,24 @@ func TestReconcileImplGatewayNotDirectlyRoutable(t *testing.T) {
 
 	if res != gatewayNotDirectlyRoutableError {
 		t.Error("Result must be gatewayNotDirectlyRoutableError")
+	}
+	if err != nil {
+		t.Errorf("Error must be nil: %s", err.Error())
+	}
+}
+
+func TestReconcileImplDeletingWhileGatewayNotDirectlyRoutable(t *testing.T) {
+	route := newStaticRouteWithValues(true, true)
+	route.Spec.Gateway = "10.0.10.1"
+	params, _ := getReconcileContextForAddFlow(route, true, true)
+	params.options.GetGw = func(net.IP) (net.IP, error) {
+		return net.IP{10, 0, 0, 1}, nil
+	}
+
+	res, err := reconcileImpl(*params)
+
+	if res != deletionFinished {
+		t.Error("Result must be deletionFinished")
 	}
 	if err != nil {
 		t.Errorf("Error must be nil: %s", err.Error())
