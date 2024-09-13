@@ -188,6 +188,10 @@ func (m mockManager) AddMetricsExtraHandler(string, http.Handler) error {
 	return nil
 }
 
+func (m mockManager) AddMetricsServerExtraHandler(string, http.Handler) error {
+	return nil
+}
+
 type mockRouteManager struct{}
 
 func (m mockRouteManager) IsRegistered(string) bool {

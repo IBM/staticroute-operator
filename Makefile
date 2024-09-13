@@ -15,7 +15,6 @@ include Makefile.env
 include Makefile.sdk
 
 deps:
-	GOBIN=${MAKEFILE_DIR}/bin go install sigs.k8s.io/controller-tools/cmd/controller-gen@v${CONTROLLER_GEN_VERSION}
 	make _deps-$(shell uname | tr '[:upper:]' '[:lower:]')
 
 _deps-darwin:
@@ -34,7 +33,7 @@ _calculate-build-number:
 
 lint:
 ifdef GOLANGCI_LINT_EXISTS
-	golangci-lint run --verbose --timeout 3m
+	golangci-lint run --verbose --timeout 10m
 else
 	@echo "golangci-lint is not installed"
 endif
