@@ -34,6 +34,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
 
 	"github.com/IBM/staticroute-operator/controllers/node"
 	"github.com/IBM/staticroute-operator/controllers/staticroute"
@@ -45,7 +46,8 @@ import (
 	staticroutev1 "github.com/IBM/staticroute-operator/api/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	clientConfig "sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/config"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -103,7 +105,7 @@ func main() {
 		logger:      log,
 		getEnv:      os.Getenv,
 		osEnv:       os.Environ,
-		getConfig:   config.GetConfig,
+		getConfig:   clientConfig.GetConfig,
 		newManager:  manager.New,
 		addToScheme: staticroutev1.AddToScheme,
 		newKubernetesConfig: func(config *rest.Config) (discoverable, error) {
@@ -157,6 +159,9 @@ func mainImpl(params mainImplParams) {
 		MapperProvider: apiutil.NewDynamicRESTMapper,
 		Metrics: metricsserver.Options{
 			BindAddress: "0",
+		},
+		Controller: config.Controller{
+			SkipNameValidation: ptr.To(true),
 		},
 	})
 	if err != nil {
