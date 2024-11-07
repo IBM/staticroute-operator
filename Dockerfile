@@ -20,8 +20,6 @@ RUN CGO_ENABLED=${CGO} GOOS=linux GOARCH=${ARCH} go build ${GOBUILDFLAGS} -o /st
 
 # Intermediate stage to apply capabilities
 FROM $INTERMEDIATE_IMAGE AS intermediate
-
-RUN apt-get update && apt-get install -y libcap2-bin
 COPY --from=builder /staticroute-operator /staticroute-operator
 RUN setcap cap_net_admin+ep /staticroute-operator
 RUN chmod go+x /staticroute-operator
