@@ -1,8 +1,6 @@
 module github.com/IBM/staticroute-operator
 
-go 1.22.0
-
-toolchain go1.22.7
+go 1.22.10
 
 require (
 	github.com/go-logr/logr v1.4.2
@@ -13,7 +11,7 @@ require (
 	k8s.io/apimachinery v0.31.1
 	k8s.io/client-go v0.31.1
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
-	sigs.k8s.io/controller-runtime v0.19.0
+	sigs.k8s.io/controller-runtime v0.19.4
 )
 
 require (
