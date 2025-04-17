@@ -26,7 +26,6 @@ import (
 	staticroutev1 "github.com/IBM/staticroute-operator/api/v1"
 	"github.com/IBM/staticroute-operator/pkg/routemanager"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -267,8 +266,8 @@ func TestReconcileImplUpdateStatus(t *testing.T) {
 
 	instance := &staticroutev1.StaticRoute{}
 	instanceID := &types.NamespacedName{
-		Name:      route.ObjectMeta.Name,
-		Namespace: route.ObjectMeta.Namespace,
+		Name:      route.Name,
+		Namespace: route.Namespace,
 	}
 
 	// Part 1 - route creation fails on purpose, error is set
@@ -583,7 +582,7 @@ func getReconcileContextForAddFlow(route *staticroutev1.StaticRoute, isRegistere
 	}
 
 	if isDeleting {
-		route.DeletionTimestamp = &v1.Time{Time: time.Date(2021, time.Month(2), 21, 1, 10, 30, 0, time.UTC)}
+		route.DeletionTimestamp = &metav1.Time{Time: time.Date(2021, time.Month(2), 21, 1, 10, 30, 0, time.UTC)}
 		route.Finalizers = append(route.Finalizers, "finalizer.static-route.ibm.com")
 	}
 	mockClient := reconcileImplClientMock{

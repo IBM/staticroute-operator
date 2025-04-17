@@ -2,14 +2,19 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: static-route-operator
+  labels:
+    name: static-route-operator
+    app.kubernetes.io/name: static-route-operator
 spec:
   selector:
     matchLabels:
       name: static-route-operator
+      app.kubernetes.io/name: static-route-operator
   template:
     metadata:
       labels:
         name: static-route-operator
+        app.kubernetes.io/name: static-route-operator
     spec:
       serviceAccountName: static-route-operator
       hostNetwork: true

@@ -27,12 +27,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/discovery"
 	openapiclient "k8s.io/client-go/openapi"
-	"k8s.io/client-go/rest"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -74,10 +72,10 @@ func newFakeClient() client.Client {
 	route := &staticroutev1.StaticRoute{}
 	s.AddKnownTypes(staticroutev1.GroupVersion, route)
 	node := &corev1.Node{
-		TypeMeta: v1.TypeMeta{
+		TypeMeta: metav1.TypeMeta{
 			Kind: "node",
 		},
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "hostname",
 		},
 	}
@@ -125,7 +123,7 @@ func (m mockManager) Start(context.Context) error {
 	return m.startErr
 }
 
-func (m mockManager) GetConfig() *rest.Config {
+func (m mockManager) GetConfig() *restclient.Config {
 	return nil
 }
 
