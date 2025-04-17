@@ -4,7 +4,7 @@ set -o pipefail
 
 SCRIPT_PATH=$PWD/$(dirname "$0")
 KIND_CLUSTER_NAME="static-route-operator-fvt"
-KIND_IMAGE_VERSION="kindest/node:v1.29.2@sha256:51a1434a5397193442f0be2a297b488b6c919ce8a3931be0ce822606ea5ca245"
+KIND_IMAGE_VERSION="kindest/node:v1.33.1@sha256:050072256b9a903bd914c0b2866828150cb229cea0efe5892e2b644d5dd3b34f"
 KEEP_ENV="${KEEP_ENV:-false}"
 SKIP_OPERATOR_INSTALL="${SKIP_OPERATOR_INSTALL:-false}"
 PROVIDER="${PROVIDER:-kind}"
@@ -204,7 +204,7 @@ spec:
   subnet: "192.168.0.0/24"
   gateway: "1.2.3.4"
 EOF
-check_static_route_crd_status "example-static-route-with-wrong-gateway" "all_nodes_shall_post_status" "Given gateway IP is not directly routable, cannot setup the route"
+check_static_route_crd_status "example-static-route-with-wrong-gateway" "all_nodes_shall_post_status" "given gateway IP is not directly routable, cannot setup the route"
 check_route_on_nodes "192.168.0.0/24 via 1.2.3.4" "all" "default" "negative"
 kubectl delete staticroute example-static-route-with-wrong-gateway
 
@@ -251,8 +251,8 @@ spec:
   subnet: "${SUBNET2}"
 EOF
   update_node_list
-  check_static_route_crd_status "example-static-route-protected-subnet1" "all_nodes_shall_post_status" "Given subnet overlaps with some protected subnet"
-  check_static_route_crd_status "example-static-route-protected-subnet2" "all_nodes_shall_post_status" "Given subnet overlaps with some protected subnet"
+  check_static_route_crd_status "example-static-route-protected-subnet1" "all_nodes_shall_post_status" "given subnet overlaps with some protected subnet"
+  check_static_route_crd_status "example-static-route-protected-subnet2" "all_nodes_shall_post_status" "given subnet overlaps with some protected subnet"
   check_route_on_nodes "${SUBNET1} via ${GW}" "all" "default" "negative"
   check_route_on_nodes "${SUBNET2} via ${GW}" "all" "default" "negative"
   kubectl delete staticroute example-static-route-protected-subnet1 example-static-route-protected-subnet2
