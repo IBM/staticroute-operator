@@ -8,7 +8,7 @@ dist: jammy
 
 # Go version for Travis (fvt)
 go:
-- "1.22.7"
+- "1.24.4"
 
 git:
     depth: 9999

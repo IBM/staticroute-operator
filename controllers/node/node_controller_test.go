@@ -45,8 +45,8 @@ func TestFindNodeFound(t *testing.T) {
 
 	index := nf.findNode(route)
 
-	if 1 != index {
-		t.Errorf("Index not match 1 == %d", index)
+	if index != 1 {
+		t.Errorf("Index not match %d == 1", index)
 	}
 }
 
@@ -65,8 +65,8 @@ func TestFindNodeNotFound(t *testing.T) {
 
 	index := nf.findNode(route)
 
-	if -1 != index {
-		t.Errorf("Index not match -1 == %d", index)
+	if index != -1 {
+		t.Errorf("Index not match %d == -1", index)
 	}
 }
 

@@ -168,9 +168,9 @@ func reconcileImpl(params reconcileImplParams) (res *reconcile.Result, err error
 		var serr error
 		switch res {
 		case overlapsProtected:
-			serr = errors.New("Given subnet overlaps with some protected subnet")
+			serr = errors.New("given subnet overlaps with some protected subnet")
 		case gatewayNotDirectlyRoutableError:
-			serr = errors.New("Given gateway IP is not directly routable, cannot setup the route")
+			serr = errors.New("given gateway IP is not directly routable, cannot setup the route")
 		default:
 			serr = err
 		}
@@ -187,7 +187,7 @@ func reconcileImpl(params reconcileImplParams) (res *reconcile.Result, err error
 		}
 
 		// if staticroute deletion started, fire delete operation
-		if !instance.ObjectMeta.DeletionTimestamp.IsZero() {
+		if !instance.DeletionTimestamp.IsZero() {
 			res, err = deleteOperation(params, &rw, reqLogger)
 		}
 	}()
@@ -312,7 +312,7 @@ func (r *StaticRouteReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func selectGateway(params reconcileImplParams, rw routeWrapper, logger types.Logger) (*reconcile.Result, net.IP, error) {
 	gateway := rw.getGateway()
 	if gateway == nil && len(rw.instance.Spec.Gateway) != 0 {
-		logger.Error(errors.New("Invalid gateway found in Spec"), rw.instance.Spec.Gateway)
+		logger.Error(errors.New("invalid gateway found in Spec"), rw.instance.Spec.Gateway)
 		return invalidGatewayError, nil, nil
 	}
 	if gateway != nil {
@@ -322,7 +322,7 @@ func selectGateway(params reconcileImplParams, rw routeWrapper, logger types.Log
 			return routeGetError, nil, err
 		}
 		if extraGw != nil {
-			logger.Error(errors.New("Gateway IP is not directly routable. Next hop detected: "), extraGw.String())
+			logger.Error(errors.New("gateway IP is not directly routable. Next hop detected: "), extraGw.String())
 			return gatewayNotDirectlyRoutableError, gateway, nil
 		}
 	} else {
@@ -437,6 +437,6 @@ func convertToOperator(operator metav1.LabelSelectorOperator) (selection.Operato
 	case metav1.LabelSelectorOpDoesNotExist:
 		return selection.DoesNotExist, nil
 	default:
-		return selection.Equals, errors.New("Unable to convert operator")
+		return selection.Equals, errors.New("unable to convert operator")
 	}
 }
