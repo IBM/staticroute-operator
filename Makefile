@@ -73,7 +73,7 @@ else
 	@echo "gosec is not installed"
 endif
 
-fvt: _calculate-build-number build-operator
+fvt: _calculate-build-number validate-code build-operator
 	docker tag $(REGISTRY_REPO)-amd64 $(REGISTRY_REPO)-amd64:$(CONTAINER_VERSION)
 	$(eval export REGISTRY_REPO=$(REGISTRY_REPO)-amd64)
 	@scripts/run-fvt.sh
@@ -83,7 +83,7 @@ validate-code: lint lint-sh lint-yaml formatcheck vet sec test
 update-operator-resource:
 	make manifests
 
-build-operator: update-operator-resource validate-code
+build-operator:
 	make docker-build IMG=$(REGISTRY_REPO)
 
 dev-publish-image: _calculate-build-number build-operator

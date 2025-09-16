@@ -131,7 +131,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: docker-build
 docker-build: test ## docker-build-s390x
-	docker buildx build \
+	docker build \
 		--platform linux/amd64 \
 		--progress=plain \
 		-t ${IMG}-amd64 \
