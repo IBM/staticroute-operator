@@ -9,7 +9,6 @@ spec:
   selector:
     matchLabels:
       name: static-route-operator
-      app.kubernetes.io/name: static-route-operator
   template:
     metadata:
       labels:
