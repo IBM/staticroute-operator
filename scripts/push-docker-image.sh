@@ -2,7 +2,6 @@
 
 DOCKER_IMAGE=$1
 DOCKER_TAG=$2
-PID_LIST=()
 EXIT_CODE=0
 TIMEOUT=60
 REGISTRIES=$(echo "${DOCKER_REGISTRY_LIST}" | tr ',' ' ')
@@ -18,7 +17,7 @@ do
   DOCKER_PID_LIST+=($!)
 done
 
-# keep Travis alive, when pushing large docker images
+# Keep CI alive while pushing large docker images.
 while (( TIMEOUT-- > 0 ))
 do
   echo "Pushing ${DOCKER_IMAGE}:${DOCKER_TAG} image to [${DOCKER_REGISTRY_LIST}] registries..."

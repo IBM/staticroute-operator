@@ -126,7 +126,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 # Temporary skip s390x build
 #docker-build-s390x:
-#ifdef TRAVIS
+#ifdef GITHUB_ACTIONS
 #	docker buildx build --platform linux/s390x --progress=plain -t ${IMG}-s390x --build-arg BUILDER_IMAGE=$(GO_BUILDER_IMAGE) --build-arg ARCH=s390x --load .
 #endif
 

@@ -50,9 +50,7 @@ endif
 
 lint-yaml:
 ifdef YAMLLINT_EXISTS
-ifeq ($(TRAVIS),true)
-	yamllint .travis.yml ./config/
-endif
+	yamllint .github/workflows/ ./config/
 else
 	@echo "yamllint is not installed"
 endif
