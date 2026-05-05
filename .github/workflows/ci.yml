@@ -56,7 +56,7 @@ jobs:
 
       - name: Run FVT
         run: |
-          make deps
+          make deps INSTALL_LOCATION="${{ github.workspace }}/bin"
           make fvt
 
       - name: Deploy and tag on release branches
