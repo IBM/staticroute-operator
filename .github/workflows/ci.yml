@@ -38,8 +38,19 @@ jobs:
       - name: Set Docker registry variables
         run: |
           REGISTRY_URL="$(echo "${DOCKER_REGISTRY_LIST}" | tr ',' ' ' | cut -d' ' -f1)"
+          IMAGE_NAME="${DOCKER_IMAGE_NAME}"
+
+          # PR builds may not provide registry/image env vars.
+          if [ -z "${REGISTRY_URL}" ]; then
+            REGISTRY_URL="local"
+          fi
+          if [ -z "${IMAGE_NAME}" ]; then
+            IMAGE_NAME="staticroute-operator"
+          fi
+
           echo "REGISTRY_URL=${REGISTRY_URL}" >> "${GITHUB_ENV}"
-          echo "REGISTRY_REPO=${REGISTRY_URL}/${DOCKER_IMAGE_NAME}" >> "${GITHUB_ENV}"
+          echo "DOCKER_IMAGE_NAME=${IMAGE_NAME}" >> "${GITHUB_ENV}"
+          echo "REGISTRY_REPO=${REGISTRY_URL}/${IMAGE_NAME}" >> "${GITHUB_ENV}"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
