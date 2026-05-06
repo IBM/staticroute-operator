@@ -16,7 +16,7 @@ on:
 jobs:
   fvt:
     name: FVT
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
@@ -52,18 +52,9 @@ jobs:
           echo "DOCKER_IMAGE_NAME=${IMAGE_NAME}" >> "${GITHUB_ENV}"
           echo "REGISTRY_REPO=${REGISTRY_URL}/${IMAGE_NAME}" >> "${GITHUB_ENV}"
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          platforms: linux/amd64,linux/s390x
-
       - name: Show Docker versions
         run: |
           docker --version
-          docker buildx version
 
       - name: Run FVT
         run: |
