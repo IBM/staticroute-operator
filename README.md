@@ -91,7 +91,6 @@ Make sure, that every time you modify anything in `*_types.go` file, run the `ma
 
 `make deps` it is strongly recommended to run this make target before trying to build the operator.
 `make build-operator` target can be used for updating, building operator. It executes all the static code analyzing.
-`make dev-publish-image` publishes a new build of the operator image into your Docker repository.
 
 ## Testing the changes
 
@@ -132,9 +131,6 @@ The current `.github/workflows/ci.yml` uses these variables/secrets:
 
 * `DOCKER_IMAGE_NAME` (environment/repository variable)
 * `DOCKER_REGISTRY_LIST` (environment/repository variable)
-* `DOCKER_USERNAME` (secret/variable used by image push scripts)
-* `GH_TOKEN` (optional secret for release-branch tag/push; if not set, workflow falls back to `GITHUB_TOKEN`)
-* Registry password secret(s) based on each registry host in `DOCKER_REGISTRY_LIST` (for example `my_docker_repo_io`, `quay_io`)
 
 ## Contributing
 

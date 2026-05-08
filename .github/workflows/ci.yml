@@ -15,10 +15,8 @@ on:
 
 jobs:
   fvt:
-    name: FVT
+    name: Build + FVT
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,7 +33,7 @@ jobs:
           python3 -m pip install --upgrade pip
           python3 -m pip --quiet install yamllint
 
-      - name: Set Docker registry variables
+      - name: Set local image variables
         run: |
           REGISTRY_URL="$(echo "${DOCKER_REGISTRY_LIST}" | tr ',' ' ' | cut -d' ' -f1)"
           IMAGE_NAME="${DOCKER_IMAGE_NAME}"
@@ -56,17 +54,7 @@ jobs:
         run: |
           docker --version
 
-      - name: Run FVT
+      - name: Install deps and run FVT
         run: |
           make deps INSTALL_LOCATION="${{ github.workspace }}/bin"
           make fvt
-
-      - name: Deploy and tag on release branches
-        if: github.event_name == 'push' && startsWith(github.ref_name, 'release-')
-        env:
-          GH_REPO: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN != '' && secrets.GH_TOKEN || github.token }}
-          GITHUB_BRANCH: ${{ github.ref_name }}
-          GITHUB_RUN_NUMBER: ${{ github.run_number }}
-          GITHUB_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-        run: bash scripts/github-provider-script.sh
