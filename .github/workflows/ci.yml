@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - "build-*"
+      - "v*.*.*"
+    tags-ignore:
+      - "build-*"
+      - "v*.*.*"
+  pull_request:
+    branches-ignore:
+      - "build-*"
+      - "v*.*.*"
+
+jobs:
+  fvt:
+    name: Build + FVT
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.9"
+
+      - name: Install yamllint
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip --quiet install yamllint
+
+      - name: Set local image variables
+        run: |
+          REGISTRY_URL="$(echo "${DOCKER_REGISTRY_LIST}" | tr ',' ' ' | cut -d' ' -f1)"
+          IMAGE_NAME="${DOCKER_IMAGE_NAME}"
+
+          # PR builds may not provide registry/image env vars.
+          if [ -z "${REGISTRY_URL}" ]; then
+            REGISTRY_URL="local"
+          fi
+          if [ -z "${IMAGE_NAME}" ]; then
+            IMAGE_NAME="staticroute-operator"
+          fi
+
+          echo "REGISTRY_URL=${REGISTRY_URL}" >> "${GITHUB_ENV}"
+          echo "DOCKER_IMAGE_NAME=${IMAGE_NAME}" >> "${GITHUB_ENV}"
+          echo "REGISTRY_REPO=${REGISTRY_URL}/${IMAGE_NAME}" >> "${GITHUB_ENV}"
+
+      - name: Show Docker versions
+        run: |
+          docker --version
+
+      - name: Install deps and run FVT
+        run: |
+          make deps INSTALL_LOCATION="${{ github.workspace }}/bin"
+          make fvt

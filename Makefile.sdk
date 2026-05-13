@@ -124,14 +124,8 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # (i.e. docker build --platform linux/arm64 ). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 
-# Temporary skip s390x build
-#docker-build-s390x:
-#ifdef TRAVIS
-#	docker buildx build --platform linux/s390x --progress=plain -t ${IMG}-s390x --build-arg BUILDER_IMAGE=$(GO_BUILDER_IMAGE) --build-arg ARCH=s390x --load .
-#endif
-
 .PHONY: docker-build
-docker-build: test ## docker-build-s390x
+docker-build: test
 	docker build \
 		--platform linux/amd64 \
 		--progress=plain \

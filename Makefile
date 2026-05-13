@@ -8,7 +8,7 @@ GIT_COMMIT_SHA:=$(shell git rev-parse HEAD 2>/dev/null)
 SHFILES=$(shell find . -type f -name '*fvt*.sh')
 SHELLCHECK_EXISTS:=$(shell shellcheck --version 2>/dev/null)
 YAMLLINT_EXISTS:=$(shell yamllint --version 2>/dev/null)
-INSTALL_LOCATION?=$(GOPATH)/bin
+INSTALL_LOCATION?=$(or $(GOPATH),$(HOME)/go)/bin
 MAKEFILE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
 include Makefile.env
@@ -50,9 +50,7 @@ endif
 
 lint-yaml:
 ifdef YAMLLINT_EXISTS
-ifeq ($(TRAVIS),true)
-	yamllint .travis.yml ./config/
-endif
+	yamllint .github/workflows/ ./config/
 else
 	@echo "yamllint is not installed"
 endif
