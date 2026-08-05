@@ -32,6 +32,7 @@ import (
 	"k8s.io/client-go/discovery"
 	openapiclient "k8s.io/client-go/openapi"
 	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -40,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 )
 
 func getEnvMock(metricsNS, nodeHostName, targetTable, protectedSubnets, fallbackIP string) func(string) string {
@@ -154,6 +156,10 @@ func (m mockManager) GetEventRecorderFor(name string) record.EventRecorder {
 	return nil
 }
 
+func (m mockManager) GetEventRecorder(name string) events.EventRecorder {
+	return nil
+}
+
 func (m mockManager) GetRESTMapper() meta.RESTMapper {
 	return nil
 }
@@ -172,6 +178,10 @@ func (m mockManager) GetLogger() logr.Logger {
 
 func (m mockManager) GetControllerOptions() ctrlcfg.Controller {
 	return ctrlcfg.Controller{}
+}
+
+func (m mockManager) GetConverterRegistry() conversion.Registry {
+	return conversion.NewRegistry()
 }
 
 func (m mockManager) AddHealthzCheck(string, healthz.Checker) error {

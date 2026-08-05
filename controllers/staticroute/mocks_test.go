@@ -101,6 +101,13 @@ func (m *statusWriterMock) Patch(ctx context.Context, obj client.Object, patch c
 	return m.patchErr
 }
 
+func (m *statusWriterMock) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.SubResourceApplyOption) error {
+	if m.client != nil {
+		return m.client.Status().Apply(ctx, obj, opts...)
+	}
+	return nil
+}
+
 type routeManagerMock struct {
 	isRegistered       bool
 	registeredCallback func(string, routemanager.Route) error
