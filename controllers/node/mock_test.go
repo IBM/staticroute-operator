@@ -75,6 +75,10 @@ func (m statusWriterMock) Patch(context.Context, client.Object, client.Patch, ..
 	return m.patchErr
 }
 
+func (m statusWriterMock) Apply(context.Context, runtime.ApplyConfiguration, ...client.SubResourceApplyOption) error {
+	return nil
+}
+
 func newReconcileImplParams(client reconcileImplClient) *reconcileImplParams {
 	return &reconcileImplParams{
 		request: reconcile.Request{
