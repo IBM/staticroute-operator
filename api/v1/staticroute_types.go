@@ -84,7 +84,3 @@ type StaticRouteList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []StaticRoute `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&StaticRoute{}, &StaticRouteList{})
-}

@@ -25,7 +25,7 @@ _deps-linux:
 	mkdir -p $(INSTALL_LOCATION)
 	@echo "Installing build dependencies..."
 	curl -sL https://github.com/operator-framework/operator-sdk/releases/download/v${OP_SDK_RELEASE_VERSION}/operator-sdk_linux_amd64 > ${INSTALL_LOCATION}/operator-sdk
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ${INSTALL_LOCATION} v${GOLANGCI_LINT_VERSION}
+	curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b ${INSTALL_LOCATION} v${GOLANGCI_LINT_VERSION}
 	curl -sL https://github.com/kubernetes-sigs/kind/releases/download/v${KIND_VERSION}/kind-linux-amd64 > ${INSTALL_LOCATION}/kind
 	curl -sL https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl > ${INSTALL_LOCATION}/kubectl
 	chmod +x ${INSTALL_LOCATION}/operator-sdk ${INSTALL_LOCATION}/kind ${INSTALL_LOCATION}/kubectl
