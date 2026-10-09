@@ -160,6 +160,18 @@ func reconcileImpl(params reconcileImplParams) (res *reconcile.Result, err error
 
 	rw := routeWrapper{instance: instance}
 
+	// Cleanup is only needed when the StaticRoute is being deleted.
+	// Do not list all Nodes during normal reconciliation.
+	if !instance.DeletionTimestamp.IsZero() {
+		if err = removeStaleNodeStatuses(params, instance, reqLogger); err != nil {
+			return nodeGetError, err
+		}
+
+		if len(instance.Status.NodeStatus) == 0 {
+			return deleteOperation(params, &rw, reqLogger)
+		}
+	}
+
 	defer func() {
 		if !reportStatus {
 			return
@@ -439,4 +451,50 @@ func convertToOperator(operator metav1.LabelSelectorOperator) (selection.Operato
 	default:
 		return selection.Equals, errors.New("unable to convert operator")
 	}
+}
+
+// removeStaleNodeStatuses removes status entries for nodes that no longer exist
+func removeStaleNodeStatuses(
+	params reconcileImplParams,
+	instance *staticroutev1.StaticRoute,
+	logger types.Logger,
+) error {
+	nodes := &corev1.NodeList{}
+	if err := params.client.List(context.Background(), nodes); err != nil {
+		logger.Error(err, "Unable to list Kubernetes nodes")
+		return err
+	}
+
+	existingNodes := make(map[string]struct{}, len(nodes.Items))
+	for i := range nodes.Items {
+		node := &nodes.Items[i]
+
+		existingNodes[node.Name] = struct{}{}
+
+		if hostname := node.Labels[HostNameLabel]; hostname != "" {
+			existingNodes[hostname] = struct{}{}
+		}
+	}
+
+	originalLength := len(instance.Status.NodeStatus)
+	updatedStatus := make([]staticroutev1.StaticRouteNodeStatus, 0, originalLength)
+	for _, status := range instance.Status.NodeStatus {
+		if _, exists := existingNodes[status.Hostname]; exists {
+			updatedStatus = append(updatedStatus, status)
+			continue
+		}
+		logger.Info("Removing stale node status", "hostname", status.Hostname)
+	}
+
+	if len(updatedStatus) == originalLength {
+		return nil
+	}
+
+	instance.Status.NodeStatus = updatedStatus
+	if err := params.client.Status().Update(context.Background(), instance); err != nil {
+		logger.Error(err, "Unable to update StaticRoute status after stale-node cleanup")
+		return err
+	}
+
+	return nil
 }
