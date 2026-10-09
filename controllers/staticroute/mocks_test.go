@@ -140,15 +140,15 @@ func (m routeManagerMock) Run(chan struct{}) error {
 	return nil
 }
 
-func newFakeClient(route *staticroutev1.StaticRoute) client.Client {
+func newFakeClient(route *staticroutev1.StaticRoute, nodes *corev1.NodeList) client.Client {
 	s := runtime.NewScheme()
 	s.AddKnownTypes(staticroutev1.GroupVersion, route)
-	nodes := &corev1.NodeList{}
-	s.AddKnownTypes(corev1.SchemeGroupVersion, nodes)
+	s.AddKnownTypes(corev1.SchemeGroupVersion, &corev1.NodeList{})
+	s.AddKnownTypes(corev1.SchemeGroupVersion, &corev1.Node{})
 	return fake.NewClientBuilder().
 		WithScheme(s).
 		WithStatusSubresource(route).
-		WithRuntimeObjects([]runtime.Object{route}...).
+		WithRuntimeObjects([]runtime.Object{nodes, route}...).
 		Build()
 }
 
@@ -185,7 +185,7 @@ func newStaticRouteWithValues(withSpec, withStatus bool) *staticroutev1.StaticRo
 	if withStatus {
 		route.Status = staticroutev1.StaticRouteStatus{
 			NodeStatus: []staticroutev1.StaticRouteNodeStatus{
-				staticroutev1.StaticRouteNodeStatus{
+				{
 					Hostname: "hostname",
 					State: staticroutev1.StaticRouteSpec{
 						Subnet:  "10.0.0.1/16",
