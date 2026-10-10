@@ -44,6 +44,6 @@ type RouteManager interface {
 	RegisterWatcher(RouteWatcher)
 	//DeRegisterWatcher removes watchers
 	DeRegisterWatcher(RouteWatcher)
-	//Run is the main event loop, shall run in it's own go-routine. Returns when the channel sent in got closed.
+	//Run is the main event loop, shall run in it's own go-routine. Returns nil when the channel sent in got closed, or an error if the netlink route subscription fails.
 	Run(chan struct{}) error
 }

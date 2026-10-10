@@ -212,16 +212,81 @@ func TestWatch(t *testing.T) {
 	testable.rm.DeRegisterWatcher(mockWatcher)
 }
 
-func TestWatchCloseUpdateChan(t *testing.T) {
+type mockSubscription struct {
+	updateChan chan<- netlink.RouteUpdate
+	done       <-chan struct{}
+}
+
+func isClosed(c <-chan struct{}) bool {
+	select {
+	case <-c:
+		return true
+	default:
+		return false
+	}
+}
+
+func TestWatchCloseUpdateChanResubscribes(t *testing.T) {
+	subscriptions := make(chan mockSubscription, 2)
 	testable := newTestableRouteManager()
+	testable.rm.(*routeManagerImpl).nlRouteSubscribeFunc = func(u chan<- netlink.RouteUpdate, done <-chan struct{}) error {
+		subscriptions <- mockSubscription{u, done}
+		return nil
+	}
 	testable.start()
 
+	first := <-subscriptions
+	close(first.updateChan)
+	second := <-subscriptions
+
+	if !isClosed(first.done) {
+		t.Error("Closed subscription must be released before subscribing again")
+	}
+	if isClosed(second.done) {
+		t.Error("New subscription must not be released")
+	}
+
 	mockWatcher := MockRouteWatcher{routeDeletedCalledWith: make(chan Route)}
+	if err := testable.rm.RegisterRoute(gTestRouteName, gTestRoute); err != nil {
+		t.Error("RegisterRoute shall pass here")
+	}
 	testable.rm.RegisterWatcher(mockWatcher)
+	second.updateChan <- netlink.RouteUpdate{Type: unix.RTM_DELROUTE, Route: gTestRoute.toNetLinkRoute()}
 
-	close(gMockUpdateChan)
+	fromUpdate := <-mockWatcher.routeDeletedCalledWith
+	if !fromUpdate.toNetLinkRoute().Equal(gTestRoute.toNetLinkRoute()) {
+		t.Error("Route in update event must be the same which we sent in")
+	}
 
+	testable.stop()
+	if testable.runError != nil {
+		t.Errorf("Run supposed to exit without error when stopped: %v", testable.runError)
+	}
+	if !isClosed(second.done) {
+		t.Error("Subscription must be released when Run is stopped")
+	}
+}
+
+func TestRunReturnsResubscribeError(t *testing.T) {
+	subscribeCalls := 0
+	testable := newTestableRouteManager()
+	testable.rm.(*routeManagerImpl).nlRouteSubscribeFunc = func(u chan<- netlink.RouteUpdate, done <-chan struct{}) error {
+		subscribeCalls++
+		if subscribeCalls > 1 {
+			return errors.New("bla")
+		}
+		close(u)
+		return nil
+	}
+	testable.start()
 	testable.wg.Wait()
+
+	if testable.runError == nil {
+		t.Error("Run supposed to exit with an error due to route resubscription failure")
+	}
+	if subscribeCalls != 2 {
+		t.Errorf("Route subscription supposed to be called twice, called: %d", subscribeCalls)
+	}
 }
 
 func TestRegisterRouteSuccess(t *testing.T) {

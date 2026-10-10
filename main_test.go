@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"runtime/debug"
@@ -263,8 +264,7 @@ func TestMainImplServerResourcesForGroupVersionFails(t *testing.T) {
 }
 
 func TestMainImplCrdNorFound(t *testing.T) {
-	err := new(goruntime.PanicNilError)
-	defer validateRecovery(t, err)()
+	defer validateRecovery(t, "CRD not found: staticroutes.static-route.ibm.com")()
 	params, _ := getContextForHappyFlow()
 	params.newKubernetesConfig = func(c *rest.Config) (discoverable, error) {
 		return mockDiscoverable{apiResourceList: &metav1.APIResourceList{}}, nil
@@ -310,6 +310,27 @@ func TestMainImplManagerStartFails(t *testing.T) {
 	}
 
 	mainImpl(*params)
+
+	t.Error("Error didn't appear")
+}
+
+func TestRunRouteManagerStoppedWithoutError(t *testing.T) {
+	defer validateRecovery(t, "route manager stopped unexpectedly")()
+	stopChan := make(chan struct{})
+	close(stopChan)
+
+	runRouteManager(mockRouteManager{}, stopChan)
+
+	t.Error("Error didn't appear")
+}
+
+func TestRunRouteManagerFails(t *testing.T) {
+	err := errors.New("netlink route subscription failed")
+	defer validateRecovery(t, err)()
+	stopChan := make(chan struct{})
+	close(stopChan)
+
+	runRouteManager(mockRouteManager{runErr: err}, stopChan)
 
 	t.Error("Error didn't appear")
 }
