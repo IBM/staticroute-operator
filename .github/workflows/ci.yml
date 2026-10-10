@@ -13,6 +13,9 @@ on:
       - "build-*"
       - "v*.*.*"
 
+permissions:
+  contents: read
+
 jobs:
   fvt:
     name: Build + FVT
