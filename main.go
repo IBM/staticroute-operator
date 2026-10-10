@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -221,9 +222,7 @@ func mainImpl(params mainImplParams) {
 		// Create RouteManager
 		routeManager := params.newRouterManager()
 		stopChan := make(chan struct{})
-		go func() {
-			panic(routeManager.Run(stopChan))
-		}()
+		go runRouteManager(routeManager, stopChan)
 
 		// Start static route controller
 		if err := params.addStaticRouteController(mgr, staticroute.ManagerOptions{
@@ -240,8 +239,7 @@ func mainImpl(params mainImplParams) {
 		break
 	}
 	if !crdFound {
-		params.logger.Info("CRD not found: staticroutes.static-route.ibm.com")
-		panic(err)
+		panic("CRD not found: staticroutes.static-route.ibm.com")
 	}
 
 	// Start node controller
@@ -256,6 +254,14 @@ func mainImpl(params mainImplParams) {
 		params.logger.Error(err, "Manager exited non-zero")
 		panic(err)
 	}
+}
+
+func runRouteManager(routeManager routemanager.RouteManager, stopChan chan struct{}) {
+	err := routeManager.Run(stopChan)
+	if err == nil {
+		err = errors.New("route manager stopped unexpectedly")
+	}
+	panic(err)
 }
 
 func parseTargetTable(targetTableEnv string) int {

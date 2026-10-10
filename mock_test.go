@@ -200,7 +200,9 @@ func (m mockManager) AddMetricsServerExtraHandler(string, http.Handler) error {
 	return nil
 }
 
-type mockRouteManager struct{}
+type mockRouteManager struct {
+	runErr error
+}
 
 func (m mockRouteManager) IsRegistered(string) bool {
 	return false
@@ -224,7 +226,7 @@ func (m mockRouteManager) DeRegisterWatcher(routemanager.RouteWatcher) {
 
 func (m mockRouteManager) Run(stopChan chan struct{}) error {
 	<-stopChan
-	return nil
+	return m.runErr
 }
 
 type mockDiscoverable struct {

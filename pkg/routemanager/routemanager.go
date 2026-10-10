@@ -18,17 +18,21 @@ package routemanager
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"syscall"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var (
 	//NotFoundError route not found error
 	ErrNotFound = errors.New("Route could not found")
 )
+
+var log = logf.Log.WithName("routemanager")
 
 type routeManagerImpl struct {
 	managedRoutes         map[string]Route
@@ -185,19 +189,36 @@ func (r *routeManagerImpl) notifyWatchers(update netlink.RouteUpdate) {
 }
 
 func (r *routeManagerImpl) Run(stopChan chan struct{}) error {
-	updateChan := make(chan netlink.RouteUpdate)
-	if err := r.nlRouteSubscribeFunc(updateChan, stopChan); err != nil {
-		return err
+	for {
+		/* Netlink closes the update channel on any receive error (e.g. ENOBUFS when the socket buffer overflows).
+		   Each subscription gets its own done channel, so the socket of a broken subscription can be released
+		   before subscribing again, without stopping the whole event loop. */
+		updateChan := make(chan netlink.RouteUpdate)
+		subscriptionDone := make(chan struct{})
+		if err := r.nlRouteSubscribeFunc(updateChan, subscriptionDone); err != nil {
+			close(subscriptionDone)
+			return fmt.Errorf("netlink route subscription failed: %w", err)
+		}
+		stopped := r.handleEvents(updateChan, stopChan)
+		close(subscriptionDone)
+		if stopped {
+			return nil
+		}
+		log.Info("Netlink route subscription closed unexpectedly, subscribing again")
 	}
+}
+
+// handleEvents processes events until stopChan or updateChan gets closed. Returns true if stopChan was closed.
+func (r *routeManagerImpl) handleEvents(updateChan <-chan netlink.RouteUpdate, stopChan <-chan struct{}) bool {
 	for {
 		select {
 		case update, ok := <-updateChan:
 			if !ok {
-				return nil
+				return false
 			}
 			r.notifyWatchers(update)
 		case <-stopChan:
-			return nil
+			return true
 		case watcher := <-r.registerWatcherChan:
 			r.registerWatcher(watcher)
 		case watcher := <-r.deRegisterWatcherChan:
