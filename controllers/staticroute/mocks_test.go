@@ -36,6 +36,7 @@ type reconcileImplClientMock struct {
 	getErr          error
 	updateErr       error
 	listErr         error
+	listCalls       int
 }
 
 func (m reconcileImplClientMock) Get(ctx context.Context, key client.ObjectKey, obj client.Object, options ...client.GetOption) error {
@@ -53,10 +54,11 @@ func (m reconcileImplClientMock) Update(ctx context.Context, obj client.Object, 
 	return m.client.Update(ctx, obj, options...)
 }
 
-func (m reconcileImplClientMock) List(ctx context.Context, list client.ObjectList, options ...client.ListOption) error {
-	if m.listErr != nil {
+func (m *reconcileImplClientMock) List(ctx context.Context, list client.ObjectList, options ...client.ListOption) error {
+	if m.listErr != nil && m.listCalls > 0 {
 		return m.listErr
 	}
+	m.listCalls++
 	return m.client.List(ctx, list, options...)
 }
 
@@ -140,15 +142,15 @@ func (m routeManagerMock) Run(chan struct{}) error {
 	return nil
 }
 
-func newFakeClient(route *staticroutev1.StaticRoute) client.Client {
+func newFakeClient(route *staticroutev1.StaticRoute, nodes *corev1.NodeList) client.Client {
 	s := runtime.NewScheme()
 	s.AddKnownTypes(staticroutev1.GroupVersion, route)
-	nodes := &corev1.NodeList{}
-	s.AddKnownTypes(corev1.SchemeGroupVersion, nodes)
+	s.AddKnownTypes(corev1.SchemeGroupVersion, &corev1.NodeList{})
+	s.AddKnownTypes(corev1.SchemeGroupVersion, &corev1.Node{})
 	return fake.NewClientBuilder().
 		WithScheme(s).
 		WithStatusSubresource(route).
-		WithRuntimeObjects([]runtime.Object{route}...).
+		WithRuntimeObjects([]runtime.Object{nodes, route}...).
 		Build()
 }
 
@@ -185,7 +187,7 @@ func newStaticRouteWithValues(withSpec, withStatus bool) *staticroutev1.StaticRo
 	if withStatus {
 		route.Status = staticroutev1.StaticRouteStatus{
 			NodeStatus: []staticroutev1.StaticRouteNodeStatus{
-				staticroutev1.StaticRouteNodeStatus{
+				{
 					Hostname: "hostname",
 					State: staticroutev1.StaticRouteSpec{
 						Subnet:  "10.0.0.1/16",
