@@ -3,6 +3,8 @@
 # Wait loop configuration
 SLEEP_COUNT=20
 SLEEP_WAIT_SECONDS=6
+# How long a StaticRoute deletion may take, same as the other wait loops (2 minutes)
+DELETE_TIMEOUT_SECONDS=$((SLEEP_COUNT * SLEEP_WAIT_SECONDS))
 declare -a NODES
 
 originalPodSecuritySync=""
@@ -102,6 +104,54 @@ EOF
 
 delete_hostnet_pods() {
   kubectl delete po --selector fvt-helper=hostnet
+}
+
+# Print the operator state and logs
+# so a failed run can be diagnosed after the cluster is gone
+dump_debug_info() {
+  fvtlog "Collecting debug info..."
+  kubectl get nodes -o wide || true
+  kubectl get pods -A -o wide --selector name=static-route-operator || true
+  kubectl get staticroute -o yaml || true
+  local namespaces
+  namespaces=$(kubectl get pods -A --selector name=static-route-operator -o jsonpath='{.items[*].metadata.namespace}' | tr ' ' '\n' | sort -u) || true
+  for ns in ${namespaces}; do
+    fvtlog "Operator logs in namespace ${ns}:"
+    kubectl logs -n "${ns}" --selector name=static-route-operator --all-containers --prefix --tail=300 || true
+  done
+}
+
+print_remaining_static_routes() {
+  kubectl get staticroute -o custom-columns='NAME:.metadata.name,FINALIZERS:.metadata.finalizers,NODES IN STATUS:.status.nodeStatus[*].hostname' || true
+}
+
+# Delete StaticRoutes and wait until they are gone. Fails if the operator
+# does not finish the deletion (remove the finalizer) in time.
+# Parameters:
+# - StaticRoute names, or --all
+delete_static_routes_and_wait() {
+  if ! kubectl delete staticroute "$@" --timeout="${DELETE_TIMEOUT_SECONDS}s"; then
+    fvtlog "Failed: StaticRoute deletion did not finish within ${DELETE_TIMEOUT_SECONDS}s, the operator did not remove the finalizer."
+    print_remaining_static_routes
+    return 5
+  fi
+}
+
+# Cleanup only: delete the remaining StaticRoutes. If the operator does not
+# finish in time, report it as a failure, then remove the finalizers so the
+# CRD and the cluster can still be deleted.
+force_delete_static_routes() {
+  if kubectl delete staticroute --all --timeout="${DELETE_TIMEOUT_SECONDS}s" &>/dev/null; then
+    return 0
+  fi
+  fvtlog "Failed: StaticRoutes were not deleted within ${DELETE_TIMEOUT_SECONDS}s, the operator did not remove their finalizers:"
+  print_remaining_static_routes
+  fvtlog "Removing the finalizers so the cleanup can finish"
+  local sr
+  for sr in $(kubectl get staticroute -o name); do
+    kubectl patch "${sr}" --type=merge -p '{"metadata":{"finalizers":null}}' || true
+  done
+  return 1
 }
 
 # Function to execute a command on the host network of a node, selected by a pod that is running on it
